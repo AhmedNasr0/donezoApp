@@ -1,13 +1,13 @@
 import { createClient, RedisClientType } from 'redis'
 import { IMessageQueueService } from '../../domain/services/IMessageQueueService'
 import { logger } from '../../shared/utils/logger'
-
+import { databaseConfig } from '../config/init'
 export class RedisMessageQueueService implements IMessageQueueService {
     private client: RedisClientType | null = null
 
     async connect(): Promise<void> {
         this.client = createClient({
-            url: process.env.REDIS_URL || 'redis://localhost:6379'
+            url: databaseConfig.redisUrl
         })
 
         this.client.on('error', (err) => {

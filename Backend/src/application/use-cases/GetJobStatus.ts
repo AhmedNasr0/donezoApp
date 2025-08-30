@@ -16,7 +16,6 @@ export class GetJobStatusUseCase {
             id: job.id,
             status: job.status,
             createdAt: job.createdAt,
-            videoId: job.videoId,
             transcription: job.transcription,
             error: job.error
         }
@@ -29,7 +28,6 @@ export class GetJobStatusUseCase {
             id: job.id,
             status: job.status,
             createdAt: job.createdAt,
-            videoId: job.videoId,
             transcription: job.transcription,
             error: job.error
         }))

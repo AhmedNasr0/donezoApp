@@ -5,10 +5,14 @@ import { corsMiddleware } from './middlewares/cors'
 import { errorHandler } from './middlewares/errorHandlers'
 import { createUploadRoutes } from './routes/upload'
 import { createStatusRoutes } from './routes/status'
+import { createChatMsgRoutes } from './routes/chatMsg'
+import { createConnectionRoutes } from './routes/connection'
 import { createChatRoutes } from './routes/chat'
 import { UploadController } from './controllers/uploadController'
 import { StatusController } from './controllers/statusController'
-import { ChatController } from './controllers/chatController'
+import { ChatMsgController } from './controllers/chatMsgController'
+import { ConnectionController } from './controllers/connectionController'
+import { ChatController } from './controllers/ChatController'
 import { logger } from '../shared/utils/logger'
 
 export class Server {
@@ -19,6 +23,8 @@ export class Server {
         private uploadController: UploadController,
         private statusController: StatusController,
         private chatController: ChatController,
+        private chatMsgController: ChatMsgController,
+        private connectionController: ConnectionController,
         port: number = 3000
     ) {
         this.app = express()
@@ -29,26 +35,22 @@ export class Server {
     }
 
     private setupMiddleware(): void {
-        // Security middleware
         this.app.use(helmet())
         this.app.use(corsMiddleware)
 
-        // Rate limiting
-        const limiter = rateLimit({
-            windowMs: 15 * 60 * 1000, // 15 minutes
-            max: 100, // limit each IP to 100 requests per windowMs
-            message: {
-                success: false,
-                message: 'Too many requests, please try again later'
-            }
-        })
-        this.app.use(limiter)
+        // const limiter = rateLimit({
+        //     windowMs: 15 * 60 * 1000, 
+        //     max: 100, 
+        //     message: {
+        //         success: false,
+        //         message: 'Too many requests, please try again later'
+        //     }
+        // })
+        // this.app.use(limiter)
 
-        // Body parsing
         this.app.use(express.json({ limit: '10mb' }))
         this.app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 
-        // Health check
         this.app.get('/health', (req, res) => {
             res.json({
                 success: true,
@@ -64,9 +66,11 @@ export class Server {
 
         this.app.use(`${apiPrefix}/upload`, createUploadRoutes(this.uploadController))
         this.app.use(`${apiPrefix}/status`, createStatusRoutes(this.statusController))
-        this.app.use(`${apiPrefix}/chat`, createChatRoutes(this.chatController))
+        this.app.use(`${apiPrefix}/chat-msg`, createChatMsgRoutes(this.chatMsgController))
+        this.app.use(`${apiPrefix}/connections`, createConnectionRoutes(this.connectionController))
+        this.app.use(`${apiPrefix}/chats`, createChatRoutes(this.chatController))
 
-        // 404 handler
+
         this.app.use('*', (req, res) => {
             res.status(404).json({
                 success: false,

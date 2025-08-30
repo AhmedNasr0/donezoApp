@@ -5,17 +5,25 @@ import { DatabaseMigrations } from './infrastructure/database/migrations/init'
 import { RedisMessageQueueService } from './infrastructure/services/RedisMessageQueueService'
 import { JobRepository } from './infrastructure/repositories/JobRepositoryImp'
 import { VideoRepository } from './infrastructure/repositories/videoRepositoryImp'
+import { ChatMsgRepository } from './infrastructure/repositories/chatMsgRepositoryImp'
 import { ChatRepository } from './infrastructure/repositories/chatRepositoryImp'
+import { ConnectionRepository } from './infrastructure/repositories/connectionsRepository'
 import { VideoProcessingService } from './infrastructure/services/VideoProcessingService'
 import { OpenAIChatService } from './infrastructure/services/OpenAIChatService'
 import { UploadVideoUseCase } from './application/use-cases/uploadVideoUseCase'
 import { GetJobStatusUseCase } from './application/use-cases/GetJobStatus'
-import { ChatUseCase } from './application/use-cases/ChatUseCase'
+import { ChatMsgUseCase } from './application/use-cases/ChatMsgUseCase'
 import { UploadController } from './presentation/controllers/uploadController'
 import { StatusController } from './presentation/controllers/statusController'
-import { ChatController } from './presentation/controllers/chatController'
+import { ChatMsgController } from './presentation/controllers/chatMsgController'
 import { databaseConfig, appConfig } from './infrastructure/config/init'
 import { logger } from './shared/utils/logger'
+import { ChatController } from './presentation/controllers/ChatController'
+import { ChatUseCase } from './application/use-cases/chatUseCase'
+import { ConnectionUseCase } from './application/use-cases/connectionUseCases'
+import { ConnectionController } from './presentation/controllers/connectionController'
+import { VideoStatusUseCase } from './application/use-cases/getVideoStatus'
+import { get } from 'http'
 
 async function bootstrap(): Promise<void> {
     try {
@@ -37,7 +45,10 @@ async function bootstrap(): Promise<void> {
         // Initialize repositories
         const jobRepository = new JobRepository()
         const videoRepository = new VideoRepository()
+        const chatMsgRepository = new ChatMsgRepository()
         const chatRepository = new ChatRepository()
+        const connectionRepository = new ConnectionRepository()
+
 
         // Initialize services
         const videoProcessingService = new VideoProcessingService()
@@ -50,18 +61,25 @@ async function bootstrap(): Promise<void> {
             messageQueueService
         )
         const getJobStatusUseCase = new GetJobStatusUseCase(jobRepository)
-        const chatUseCase = new ChatUseCase(chatRepository, jobRepository, chatService)
-
+        const chatMsgUseCase = new ChatMsgUseCase(chatMsgRepository, jobRepository, chatService)
+        const connectionUseCase = new ConnectionUseCase(connectionRepository)
+        const getVideoStatusUseCase = new VideoStatusUseCase(videoRepository , jobRepository)
+        const chatUseCase = new ChatUseCase(chatRepository,connectionRepository,getVideoStatusUseCase)
+        
         // Initialize controllers
         const uploadController = new UploadController(uploadVideoUseCase)
-        const statusController = new StatusController(getJobStatusUseCase)
+        const statusController = new StatusController(getJobStatusUseCase,getVideoStatusUseCase)
+        const chatMsgController = new ChatMsgController(chatMsgUseCase)
         const chatController = new ChatController(chatUseCase)
+        const connectionController = new ConnectionController(connectionUseCase)
 
         // Initialize and start server
         const server = new Server(
             uploadController,
             statusController,
             chatController,
+            chatMsgController,
+            connectionController,
             appConfig.port
         )
 

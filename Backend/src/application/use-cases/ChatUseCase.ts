@@ -1,43 +1,105 @@
-import { v4 as uuidv4 } from 'uuid'
-import { ChatMessage } from '../../domain/entities/chat.entity'
-import { IChatRepository } from '../../domain/repositories/IChatRepository'
-import { IJobRepository } from '../../domain/repositories/IJobRepository'
-import { IChatService } from '../../domain/services/IChatService'
-import { ChatRequestDTO } from '../dtos/chatRequestDTO'
-import { AppError } from '../../shared/errors/AppError'
+import { Chat } from "../../domain/entities/chat.entity";
+import { ChatMessage } from "../../domain/entities/chatMsg.entity";
+import { IChatRepository } from "../../domain/repositories/IChatRepository";
+import { IConnectionRepository } from "../../domain/repositories/IConnectionRepository";
+import { CreateChatRequestDTO, UpdateChatRequestDTO } from "../dtos/ChatDTO";
+import { v4 as uuidv4 } from 'uuid';
+import { ChatResponseDTO } from "../dtos/chatRequestDTO";
+import { VideoStatusUseCase } from "./getVideoStatus";
 
 export class ChatUseCase {
     constructor(
         private chatRepository: IChatRepository,
-        private jobRepository: IJobRepository,
-        private chatService: IChatService
+        private connectionRepository: IConnectionRepository,
+        private videoStatusUseCase: VideoStatusUseCase
     ) {}
 
-    async execute(chatRequestDTO: ChatRequestDTO): Promise<{ answer: string; context: string[] }> {
-    
-        const allJobs = await this.jobRepository.findAll()
-        const completedJobs = allJobs.filter(job => job.status === 'done' && job.transcription)
+    async createChat(dto: CreateChatRequestDTO): Promise<Chat> {
+        const chat: Chat = {
+            id: uuidv4(),
+            chat_name: dto.chat_name,
+            chat_messages: dto.chat_messages || [],
+            numOfConnections: dto.numOfConnections || 0
+        };
 
-        if (completedJobs.length === 0) {
-            throw new AppError('No transcriptions available. Please upload and process videos first.', 400)
+        return await this.chatRepository.createChat(chat);
+    }
+
+    async getChatById(id: string): Promise<Chat | null> {
+        return await this.chatRepository.getChatById(id);
+    }
+
+    async getAllChats(): Promise<Chat[]> {
+        return await this.chatRepository.getAllChats();
+    }
+
+    async updateChat(dto: UpdateChatRequestDTO): Promise<Chat> {
+        const existingChat = await this.chatRepository.getChatById(dto.id);
+        if (!existingChat) {
+            throw new Error('Chat not found');
         }
 
-        const context = completedJobs.map(job => job.transcription!).filter(Boolean)
-        const contextString = context.join('\n\n---\n\n')
+        const updatedChat: Chat = {
+            ...existingChat,
+            ...(dto.chat_name && { chat_name: dto.chat_name }),
+            ...(dto.chat_messages && { chat_messages: dto.chat_messages }),
+            ...(dto.numOfConnections !== undefined && { numOfConnections: dto.numOfConnections })
+        };
 
-        const answer = await this.chatService.generateResponse(chatRequestDTO.question, contextString)
+        return await this.chatRepository.updateChat(updatedChat);
+    }
 
-        // Save chat message
-        const chatMessage = new ChatMessage(
-            uuidv4(),
-            chatRequestDTO.question,
-            answer,
-            context,
-            new Date()
-        )
+    async deleteChat(id: string): Promise<void> {
+        const chat = await this.chatRepository.getChatById(id);
+        if (!chat) {
+            throw new Error('Chat not found');
+        }
+        await this.chatRepository.deleteChat(id);
+    }
 
-        await this.chatRepository.save(chatMessage)
+    async addMessageToChat(chatId: string, message: any): Promise<Chat> {
+        const chat = await this.chatRepository.getChatById(chatId);
+        if (!chat) {
+            throw new Error('Chat not found');
+        }
 
-        return { answer, context }
+        const updatedMessages = [...chat.chat_messages, message];
+        
+        return await this.chatRepository.updateChat({
+            ...chat,
+            chat_messages: updatedMessages
+        });
+    }
+
+    async sendMessage(chatId: string, question: string): Promise<ChatResponseDTO> {
+        const chat = await this.chatRepository.getChatById(chatId);
+        if (!chat) {
+            throw new Error('Chat not found');
+        }
+    
+        const connectionIds = await this.connectionRepository.findConnectionIdsForEntity(chat.id, 'ai');
+
+        let hasDone = false;
+
+        for (const connectionId of connectionIds) {
+            const status = await this.videoStatusUseCase.execute(connectionId);
+
+            if (status === 'done') {
+                hasDone = true;
+                break;
+            }
+        }
+
+        if (hasDone) {
+
+            // const answer = await this.chatService.generateResponse(question, context.join('\n\n'));
+            return {
+                answer: "answer here HAHAHA"
+            };
+        } else {
+            return {
+                answer: "no Answer"
+            };
+        }
     }
 }

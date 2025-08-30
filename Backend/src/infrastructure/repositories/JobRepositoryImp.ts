@@ -11,14 +11,13 @@ export class JobRepository implements IJobRepository {
 
     async save(job: Job): Promise<void> {
         const query = `
-            INSERT INTO jobs (id, status, created_at, video_id, transcription, error)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            INSERT INTO jobs (id, status, created_at, transcription, error)
+            VALUES ($1, $2, $3, $4, $5)
         `
         const values = [
             job.id,
             job.status,
             job.createdAt,
-            job.videoId || null,
             job.transcription || null,
             job.error || null
         ]

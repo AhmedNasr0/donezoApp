@@ -2,11 +2,12 @@ import { Request, Response, NextFunction } from 'express'
 import { UploadVideoUseCase } from '../../application/use-cases/uploadVideoUseCase'
 import { UploadVideoDTO } from '../../application/dtos/uploadVideoDTO'
 import { ValidationError } from '../../shared/errors/validationError'
+import { UploaVideoResponse } from '../../shared/types/uploadVideo'
 
 export class UploadController {
     constructor(private uploadVideoUseCase: UploadVideoUseCase) {}
 
-    async uploadVideo(req: Request, res: Response, next: NextFunction): Promise<void> {
+    async uploadVideo(req: Request, res: Response, next: NextFunction): Promise<any> {
         try {
             const { url, platform, title } = req.body as UploadVideoDTO
 

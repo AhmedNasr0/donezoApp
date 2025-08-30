@@ -15,7 +15,10 @@ export class DatabaseMigrations {
             await this.createJobsTable()
             await this.createVideosTable()
             await this.createChatMessagesTable()
+            await this.createChatTable()
+            await this.crateRelationTable()
             await this.createIndexes()
+
 
             logger.info('Database migrations completed successfully')
         } catch (error) {
@@ -31,8 +34,8 @@ export class DatabaseMigrations {
                 status VARCHAR(50) NOT NULL CHECK (status IN ('pending', 'processing', 'done', 'failed')),
                 created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
                 updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-                video_id VARCHAR(255),
-                transcription TEXT,
+                resourceId VARCHAR(255),
+                transcription TEXT NULL,
                 error TEXT
             )
         `
@@ -69,14 +72,41 @@ export class DatabaseMigrations {
         await this.db.query(query)
         logger.info('Chat messages table created/verified')
     }
+    private async createChatTable(): Promise<void> {
+        const query = `
+                CREATE TABLE IF NOT EXISTS chats (
+                id VARCHAR(255) PRIMARY KEY,
+                chat_name VARCHAR(500) NOT NULL,
+                chat_messages JSONB DEFAULT '[]', -- array of messages,
+                numOfConnections INT DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            `
+        await this.db.query(query)
+        logger.info('Chat table created/verified')
+        
+    }
+
+    private async crateRelationTable(): Promise<void> {
+        const query = `
+            CREATE TABLE IF NOT EXISTS connections (
+            id VARCHAR(255) PRIMARY KEY,
+            fromId VARCHAR(255) NOT NULL,
+            fromType VARCHAR(50) NOT NULL,
+            toId VARCHAR(255) NOT NULL,
+            toType VARCHAR(50) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT unique_connection_pair UNIQUE(fromId, fromType, toId, toType)
+        );
+        `
+        await this.db.query(query)
+        logger.info('Relation table created/verified')
+    }
 
     private async createIndexes(): Promise<void> {
         const indexes = [
             'CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status)',
-            'CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON jobs(created_at)',
-            'CREATE INDEX IF NOT EXISTS idx_videos_job_id ON videos(job_id)',
-            'CREATE INDEX IF NOT EXISTS idx_videos_platform ON videos(platform)',
-            'CREATE INDEX IF NOT EXISTS idx_chat_messages_created_at ON chat_messages(created_at)'
         ]
 
         for (const indexQuery of indexes) {

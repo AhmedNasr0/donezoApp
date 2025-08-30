@@ -10,7 +10,6 @@ export class Video {
         public readonly title: string,
         public readonly createdAt: Date,
         public jobId?: string
-
     )
         {
 

@@ -1,3 +1,3 @@
 export interface IChatService {
-    generateResponse(question: string, context: string): Promise<string>
+    generateResponse(question: string, chatId: string): Promise<string>
 }

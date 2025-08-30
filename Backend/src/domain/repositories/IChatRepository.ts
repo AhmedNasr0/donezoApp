@@ -1,8 +1,10 @@
-import { ChatMessage } from '../../domain/entities/chat.entity'
+import { Chat } from "../entities/chat.entity";
+import {Video} from '../entities/video.entity'
 
-
-export interface IChatRepository {
-    save(chatMessage: ChatMessage): Promise<void>
-    findById(id: string): Promise<ChatMessage | null>
-    findRecent(limit: number): Promise<ChatMessage[]>
+export interface IChatRepository{
+    createChat: (chat: Chat) => Promise<Chat>;
+    getChatById: (id: string) => Promise<Chat>;
+    updateChat: (chat: Chat) => Promise<Chat>
+    deleteChat: (id: string) => Promise<void>,
+    getAllChats: () => Promise<Chat[]>;
 }

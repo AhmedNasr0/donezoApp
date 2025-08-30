@@ -5,7 +5,7 @@ export class Job {
         public readonly id: string,
         public status: StatusTypes,
         public readonly createdAt: Date,
-        public readonly videoId?: string,
+        public readonly resourceId?: string,
         public transcription?: string,
         public error?: string
     ) {}

@@ -1,58 +1,63 @@
-import { IChatRepository } from '../../domain/repositories/IChatRepository'
-import { ChatMessage } from '../../domain/entities/chat.entity'
-import { DatabaseConnection } from '../database/connection'
+import { Chat } from "../../domain/entities/chat.entity";
+import { IChatRepository } from "../../domain/repositories/IChatRepository";
+import { DatabaseConnection } from "../database/connection";
+
 
 export class ChatRepository implements IChatRepository {
-    private db: DatabaseConnection
-
-    constructor() {
+    private db : DatabaseConnection
+    constructor(    
+    ) {
         this.db = DatabaseConnection.getInstance()
     }
-
-    async save(chatMessage: ChatMessage): Promise<void> {
+    async getAllChats() : Promise<Chat[]>{
         const query = `
-            INSERT INTO chat_messages (id, question, answer, context_sources, created_at)
-            VALUES ($1, $2, $3, $4, $5)
+            SELECT * FROM chats
+        `
+        const result = await this.db.query(query)
+        return result.rows as Chat[]
+    }
+
+    async createChat(chat: Chat) : Promise<Chat>{
+        const query = `
+            INSERT INTO chats (id, chat_name, chat_messages, numOfConnections)
+            VALUES ($1, $2, $3, $4)
         `
         const values = [
-            chatMessage.id,
-            chatMessage.question,
-            chatMessage.answer,
-            chatMessage.context, // PostgreSQL will handle the array
-            chatMessage.createdAt
+            chat.id,
+            chat.chat_name,
+            JSON.stringify(chat.chat_messages),
+            chat.numOfConnections
         ]
-        
         await this.db.query(query, values)
+        return chat
+    };
+    async getChatById(id: string):Promise<Chat>{
+        const query = `
+            SELECT * FROM chats WHERE id = $1
+        `
+        const values = [id]
+        const result = await this.db.query(query, values)
+        return result.rows[0] as Chat
     }
-
-    async findById(id: string): Promise<ChatMessage | null> {
-        const query = 'SELECT * FROM chat_messages WHERE id = $1'
-        const result = await this.db.query(query, [id])
-        
-        if (result.rows.length === 0) {
-            return null
-        }
-
-        const row = result.rows[0]
-        return new ChatMessage(
-            row.id,
-            row.question,
-            row.answer,
-            row.context_sources || [],
-            new Date(row.created_at)
-        )
+    async updateChat(chat: Chat) : Promise<Chat>{
+        const query = `
+            UPDATE chats SET chat_name = $1, chat_messages = $2, numOfConnections = $3 WHERE id = $4
+        `
+        const values = [
+            chat.chat_name,
+            chat.chat_messages,
+            chat.numOfConnections,
+            chat.id
+        ]
+        await this.db.query(query, values)
+        return chat
     }
-
-    async findRecent(limit: number): Promise<ChatMessage[]> {
-        const query = 'SELECT * FROM chat_messages ORDER BY created_at DESC LIMIT $1'
-        const result = await this.db.query(query, [limit])
-        
-        return result.rows.map((row: any) => new ChatMessage(
-            row.id,
-            row.question,
-            row.answer,
-            row.context_sources || [],
-            new Date(row.created_at)
-        ))
+    async deleteChat (id: string) : Promise<void>{
+        const query = `
+            DELETE FROM chats WHERE id = $1
+        `
+        const values = [id]
+        await this.db.query(query, values)
+        return 
     }
 }

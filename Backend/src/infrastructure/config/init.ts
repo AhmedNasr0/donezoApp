@@ -1,6 +1,6 @@
 export const databaseConfig = {
-    postgresUrl: process.env.DATABASE_URL || 'postgresql://admin:admin123@localhost:5432/videoTranscription',
-    redisUrl: process.env.REDIS_URL || 'redis://localhost:6379'
+    postgresUrl: 'postgresql://taskdb_k6cv_user:6dCazhg5QpbS70dLImDxI4p0DqS6wOa3@dpg-d2ohb324d50c739ue2o0-a.oregon-postgres.render.com/taskdb_k6cv',
+    redisUrl: 'rediss://red-d2ohqaggjchc73ep7oo0:91qTkwnGS1APbmiIWDjrRGEI35RA5rYk@oregon-keyvalue.render.com:6379'
 }
 
 type appConfig ={
