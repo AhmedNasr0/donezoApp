@@ -173,8 +173,8 @@ npm run dev
 }
 ```
 
-#### Get Job Status
-**GET** `/api/v1/status/:jobId`
+#### Job & Video Status
+**GET** `/api/v1/status/job/:jobId`
 
 **Response:**
 ```json
@@ -183,7 +183,7 @@ npm run dev
   "data": {
     "id": "uuid-job-id",
     "status": "completed",
-    "progress": 100,
+    "transcription": "This is the transcribed text...",
     "createdAt": "2024-01-15T10:30:00.000Z",
     "updatedAt": "2024-01-15T10:35:00.000Z",
     "error": null
@@ -191,26 +191,44 @@ npm run dev
 }
 ```
 
-### AI Chat System
 
-#### Send Chat Message
-**POST** `/api/v1/chat`
+#### Get All Jobs
+**GET** `/api/v1/status/all-jobs`
+
+#### Get Video Status
+**GET** `/api/v1/status/video/:videoId`
+
+
+
+### Chat System
+
+#### Create Chat
+**POST** `/api/v1/chats`
 ```json
 {
-  "question": "What was discussed in the videos?"
+  "chat_name": "Project Discussion",
+  "numOfConnections": 0
 }
 ```
 
-**Response:**
+#### Get All Chats
+**GET** `/api/v1/chats`
+
+#### Get Chat by ID
+**GET** `/api/v1/chats/:id`
+
+#### Update Chat
+**PUT** `/api/v1/chats/:id`
+
+#### Delete Chat
+**DELETE** `/api/v1/chats/:id`
+
+
+#### Send Message to Chat
+**POST** `/api/v1/chats/send-message/:chatId`
 ```json
 {
-  "success": true,
-  "data": {
-    "question": "What was discussed in the videos?",
-    "answer": "Based on the video transcriptions...",
-    "contextSources": 3,
-    "timestamp": "2024-01-15T10:30:00.000Z"
-  }
+  "question": "Summarize the video content"
 }
 ```
 
@@ -264,80 +282,45 @@ npm run dev
 }
 ```
 
-### Chat Management
-
-#### Create Chat
-**POST** `/api/v1/chats`
-```json
-{
-  "chat_name": "Project Discussion",
-  "numOfConnections": 0
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "id": "uuid-chat-id",
-    "chat_name": "Project Discussion",
-    "chat_messages": [],
-    "numOfConnections": 0
-  },
-  "message": "Chat created successfully"
-}
-```
-
-#### Get All Chats
-**GET** `/api/v1/chats`
-
-#### Get Chat by ID
-**GET** `/api/v1/chats/:id`
-
-#### Update Chat
-**PUT** `/api/v1/chats/:id`
-
-#### Delete Chat
-**DELETE** `/api/v1/chats/:id`
-
-#### Add Message to Chat
-**POST** `/api/v1/chats/:id/messages`
-```json
-{
-  "message": {
-    "content": "Hello team!",
-    "sender": "user-123",
-    "type": "text"
-  }
-}
-```
 
 ## Project Structure
 ```
 src/
 ├── application/
 │   ├── dtos/
+│   │   ├── ChatDTO.ts
+│   │   ├── ConnectionDTO.ts
+│   │   ├── JobStatusDTO.ts
 │   │   ├── chatRequestDTO.ts
-│   │   ├── ConnectionRequestDTO.ts
-│   │   └── ChatRequestDTO.ts
+│   │   └── uploadVideoDTO.ts
+|   |   
 │   └── use-cases/
 │       ├── uploadVideoUseCase.ts
 │       ├── GetJobStatus.ts
 │       ├── ChatMsgUseCase.ts
 │       ├── ConnectionUseCase.ts
 │       └── ChatUseCase.ts
+|       └── uploadVideoUseCase.ts
+|
 ├── domain/
 │   ├── entities/
 │   │   ├── video.entity.ts
 │   │   ├── job.entity.ts
 │   │   ├── connection.entity.ts
 │   │   └── chat.entity.ts
+│   |   └── chatMessage.entity.ts
 │   └── repositories/
-│       ├── IVideoRepository.ts
-│       ├── IJobRepository.ts
-│       ├── IConnectionRepository.ts
-│       └── IChatRepository.ts
+│   |    ├── IVideoRepository.ts
+│   |    ├── IJobRepository.ts
+│   |    ├── IConnectionRepository.ts
+│   |    └── IChatRepository.ts
+│   |    └── IChatMessageRepository.ts
+│   |
+│   └── services/
+│       ├── IVideoProcessingService.ts
+│       ├── IChatService.ts
+│       ├── IRedisMessageQueueService.ts
+│       
 ├── infrastructure/
 │   ├── config/
 │   ├── database/
@@ -348,6 +331,8 @@ src/
 │   │   ├── JobRepositoryImp.ts
 │   │   ├── ConnectionRepositoryImp.ts
 │   │   └── ChatRepositoryImp.ts
+│   |   └── ChatMessageRepositoryImp.ts
+│   |   
 │   └── services/
 │       ├── VideoProcessingService.ts
 │       ├── OpenAIChatService.ts
@@ -368,11 +353,12 @@ src/
 │   │   ├── status.ts
 │   │   ├── chatMsg.ts
 │   │   ├── connection.ts
-│   │   └── chatManagement.ts
+│   │   └── chat.ts
 │   └── server.ts
 ├── shared/
 │   ├── errors/
 │   └── utils/
+|   |___types/
 └── main.ts
 ```
 
@@ -411,10 +397,7 @@ npm run dev         # Development mode with hot reload
 npm run build       # Build TypeScript to JavaScript
 npm start           # Production mode
 npm run db:init     # Initialize database with migrations
-npm run db:migrate  # Run database migrations
 npm run test        # Run tests
-npm run lint        # Run ESLint
-npm run format      # Format code with Prettier
 ```
 
 ## Usage Examples
@@ -505,14 +488,3 @@ curl -X POST http://localhost:3000/api/v1/connections/disconnect \
 - **Async Processing**: Non-blocking operations
 - **Clean Architecture**: Separation of concerns
 - **TypeScript**: Type safety and better development experience
-
-## Contributing
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests for your changes
-5. Run the test suite
-6. Create a pull request
-
-## License
-MIT License - see LICENSE file for details
