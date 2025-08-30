@@ -295,12 +295,15 @@ src/
 │   │   └── uploadVideoDTO.ts
 |   |   
 │   └── use-cases/
-│       ├── uploadVideoUseCase.ts
-│       ├── GetJobStatus.ts
-│       ├── ChatMsgUseCase.ts
-│       ├── ConnectionUseCase.ts
-│       └── ChatUseCase.ts
-|       └── uploadVideoUseCase.ts
+│   |    ├── uploadVideoUseCase.ts
+│   |    ├── GetJobStatus.ts
+│   |    ├── ChatMsgUseCase.ts
+│   |    ├── ConnectionUseCase.ts
+│   |    └── ChatUseCase.ts
+|   |    └── uploadVideoUseCase.ts
+|   |
+|   └── services/
+|       ├── LLMOrchestraService.ts
 |
 ├── domain/
 │   ├── entities/
@@ -318,7 +321,7 @@ src/
 │   |
 │   └── services/
 │       ├── IVideoProcessingService.ts
-│       ├── IChatService.ts
+│       ├── LLMService.ts
 │       ├── IRedisMessageQueueService.ts
 │       
 ├── infrastructure/
@@ -335,7 +338,8 @@ src/
 │   |   
 │   └── services/
 │       ├── VideoProcessingService.ts
-│       ├── OpenAIChatService.ts
+│       ├── GeminiService.ts
+│       ├── GroqService.ts
 │       └── RedisMessageQueueService.ts
 ├── presentation/
 │   ├── controllers/

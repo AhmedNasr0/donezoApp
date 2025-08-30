@@ -6,12 +6,13 @@ import { CreateChatRequestDTO, UpdateChatRequestDTO } from "../dtos/ChatDTO";
 import { v4 as uuidv4 } from 'uuid';
 import { ChatResponseDTO } from "../dtos/chatRequestDTO";
 import { VideoStatusUseCase } from "./getVideoStatus";
-
+import { LLMOrchestratorService } from "../services/LLMOrchestratorService";
 export class ChatUseCase {
     constructor(
         private chatRepository: IChatRepository,
         private connectionRepository: IConnectionRepository,
-        private videoStatusUseCase: VideoStatusUseCase
+        private videoStatusUseCase: VideoStatusUseCase,
+        private LLMOrchestratorService: LLMOrchestratorService
     ) {}
 
     async createChat(dto: CreateChatRequestDTO): Promise<Chat> {
@@ -91,10 +92,12 @@ export class ChatUseCase {
         }
 
         if (hasDone) {
+            const context = 'AAAA'
 
-            // const answer = await this.chatService.generateResponse(question, context.join('\n\n'));
+
+            const answer = await this.LLMOrchestratorService.generateResponse(question, context);
             return {
-                answer: "answer here HAHAHA"
+                answer
             };
         } else {
             return {

@@ -9,7 +9,6 @@ import { ChatMsgRepository } from './infrastructure/repositories/chatMsgReposito
 import { ChatRepository } from './infrastructure/repositories/chatRepositoryImp'
 import { ConnectionRepository } from './infrastructure/repositories/connectionsRepository'
 import { VideoProcessingService } from './infrastructure/services/VideoProcessingService'
-import { OpenAIChatService } from './infrastructure/services/OpenAIChatService'
 import { UploadVideoUseCase } from './application/use-cases/uploadVideoUseCase'
 import { GetJobStatusUseCase } from './application/use-cases/GetJobStatus'
 import { ChatMsgUseCase } from './application/use-cases/ChatMsgUseCase'
@@ -23,6 +22,9 @@ import { ChatUseCase } from './application/use-cases/chatUseCase'
 import { ConnectionUseCase } from './application/use-cases/connectionUseCases'
 import { ConnectionController } from './presentation/controllers/connectionController'
 import { VideoStatusUseCase } from './application/use-cases/getVideoStatus'
+import { LLMOrchestratorService } from "./application/services/LLMOrchestratorService";
+import { GeminiService } from "./infrastructure/services/GeminiService";
+import { GroqService } from "./infrastructure/services/GroqService";
 import { get } from 'http'
 
 async function bootstrap(): Promise<void> {
@@ -52,7 +54,10 @@ async function bootstrap(): Promise<void> {
 
         // Initialize services
         const videoProcessingService = new VideoProcessingService()
-        const chatService = new OpenAIChatService()
+        const GeminiLLMService = new GeminiService()
+        const GroqLLMService = new GroqService()
+        const LLMOrchestrator = new LLMOrchestratorService(GeminiLLMService,GroqLLMService)
+        
 
         // Initialize use cases
         const uploadVideoUseCase = new UploadVideoUseCase(
@@ -61,10 +66,10 @@ async function bootstrap(): Promise<void> {
             messageQueueService
         )
         const getJobStatusUseCase = new GetJobStatusUseCase(jobRepository)
-        const chatMsgUseCase = new ChatMsgUseCase(chatMsgRepository, jobRepository, chatService)
+        const chatMsgUseCase = new ChatMsgUseCase(chatMsgRepository, jobRepository, LLMOrchestrator)
         const connectionUseCase = new ConnectionUseCase(connectionRepository)
         const getVideoStatusUseCase = new VideoStatusUseCase(videoRepository , jobRepository)
-        const chatUseCase = new ChatUseCase(chatRepository,connectionRepository,getVideoStatusUseCase)
+        const chatUseCase = new ChatUseCase(chatRepository,connectionRepository,getVideoStatusUseCase,LLMOrchestrator)
         
         // Initialize controllers
         const uploadController = new UploadController(uploadVideoUseCase)
