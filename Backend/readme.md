@@ -30,7 +30,7 @@ CREATE TABLE jobs (
     status VARCHAR(50) CHECK (status IN ('pending', 'processing', 'done', 'failed')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    video_id VARCHAR(255),
+    video_id VARCHAR(255) REFERENCES videos(id) ON DELETE CASCADE,
     transcription TEXT,
     error TEXT
 );

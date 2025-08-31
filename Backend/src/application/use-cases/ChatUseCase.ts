@@ -79,30 +79,27 @@ export class ChatUseCase {
         }
     
         const connectionIds = await this.connectionRepository.findConnectionIdsForEntity(chat.id, 'ai');
-
-        let hasDone = false;
-
+    
+        const contexts: string[] = [];
+    
         for (const connectionId of connectionIds) {
-            const status = await this.videoStatusUseCase.execute(connectionId);
-
-            if (status === 'done') {
-                hasDone = true;
-                break;
+            const job = await this.videoStatusUseCase.execute(connectionId);
+    
+            if (job.status === 'done') {
+                if(job.transcription)  { 
+                    contexts.push(job.transcription); 
+                }
             }
         }
-
-        if (hasDone) {
-            const context = 'AAAA'
-
-
-            const answer = await this.LLMOrchestratorService.generateResponse(question, context);
-            return {
-                answer
-            };
+    
+        if (contexts.length > 0) {
+            const combinedContext = contexts.join("\n--\n");
+            const answer = await this.LLMOrchestratorService.generateResponse(question, combinedContext);
+            console.log("answer :",answer)
+            return { answer };
         } else {
-            return {
-                answer: "no Answer"
-            };
+            return { answer: "no Answer" };
         }
     }
+    
 }

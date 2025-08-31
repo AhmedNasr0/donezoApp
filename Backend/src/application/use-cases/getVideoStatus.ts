@@ -1,3 +1,4 @@
+import { Job } from "../../domain/entities/job.entity";
 import { IJobRepository } from "../../domain/repositories/IJobRepository";
 import { IVideoRepository } from "../../domain/repositories/IVideoRepository";
 
@@ -8,7 +9,7 @@ export class VideoStatusUseCase{
         private readonly jobRepository: IJobRepository,
     ) {}
 
-    async execute(videoId: string): Promise<string> {
+    async execute(videoId: string): Promise<Job> {
         const getVideo = await this.videoRepository.findById(videoId);
         if (!getVideo) {
             throw new Error('Video not found');
@@ -20,7 +21,7 @@ export class VideoStatusUseCase{
         if (!job) {
             throw new Error('Job not found');
         }
-        return job.status;
+        return job;
     }
 
 }

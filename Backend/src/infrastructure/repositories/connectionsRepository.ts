@@ -26,12 +26,17 @@ export class ConnectionRepository implements IConnectionRepository {
         return result.rows[0] as Connection;
     }
 
-    async findConnectionsByID(id: string): Promise<Connection | null> {
-        const query = `SELECT * FROM connections WHERE id = $1`;
+    async findConnectionsByID(id: string): Promise<Connection[]> {
+        const query = `
+            SELECT * 
+            FROM connections 
+            WHERE fromId = $1 OR toId = $1
+        `;
         const values = [id];
         const result = await this.db.query(query, values);
-        return result.rows[0] ? (result.rows[0] as Connection) : null;
+        return result.rows as Connection[];
     }
+    
 
     async updateConnection(connection: Connection): Promise<Connection> {
         const query = `

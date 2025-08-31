@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { ChatMessage } from '../../domain/entities/chatMsg.entity'
 import { IChatMsgRepository } from '../../domain/repositories/IChatMsgRepository'
 import { IJobRepository } from '../../domain/repositories/IJobRepository'
-import { IChatService } from '../../domain/services/LLMService'
+import { LLMService } from '../../domain/services/LLMService'
 import { ChatRequestDTO } from '../dtos/chatRequestDTO'
 import { AppError } from '../../shared/errors/AppError'
 
@@ -10,7 +10,7 @@ export class ChatMsgUseCase {
     constructor(
         private chatRepository: IChatMsgRepository,
         private jobRepository: IJobRepository,
-        private chatService: IChatService
+        private chatService: LLMService
     ) {}
 
     async execute(chatRequestDTO: ChatRequestDTO): Promise<{ answer: string; context: string[] }> {

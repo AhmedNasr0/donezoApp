@@ -26,6 +26,8 @@ import { LLMOrchestratorService } from "./application/services/LLMOrchestratorSe
 import { GeminiService } from "./infrastructure/services/GeminiService";
 import { GroqService } from "./infrastructure/services/GroqService";
 import { get } from 'http'
+import { VideoController } from './presentation/controllers/videoController'
+import { VideoUseCase } from './application/use-cases/videoUseCase'
 
 async function bootstrap(): Promise<void> {
     try {
@@ -70,6 +72,7 @@ async function bootstrap(): Promise<void> {
         const connectionUseCase = new ConnectionUseCase(connectionRepository)
         const getVideoStatusUseCase = new VideoStatusUseCase(videoRepository , jobRepository)
         const chatUseCase = new ChatUseCase(chatRepository,connectionRepository,getVideoStatusUseCase,LLMOrchestrator)
+        const videoUseCase = new VideoUseCase(videoRepository,connectionRepository,jobRepository)
         
         // Initialize controllers
         const uploadController = new UploadController(uploadVideoUseCase)
@@ -77,6 +80,7 @@ async function bootstrap(): Promise<void> {
         const chatMsgController = new ChatMsgController(chatMsgUseCase)
         const chatController = new ChatController(chatUseCase)
         const connectionController = new ConnectionController(connectionUseCase)
+        const videoController = new VideoController(videoUseCase)
 
         // Initialize and start server
         const server = new Server(
@@ -85,6 +89,7 @@ async function bootstrap(): Promise<void> {
             chatController,
             chatMsgController,
             connectionController,
+            videoController,
             appConfig.port
         )
 

@@ -4,4 +4,5 @@ export interface IVideoRepository{
     save(video:Video):Promise<void>,
     findById(id:string):Promise<Video|null>,
     findAll():Promise<Video[]>,
+    delete(id:string):Promise<void>
 }

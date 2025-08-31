@@ -14,7 +14,8 @@ import { ChatMsgController } from './controllers/chatMsgController'
 import { ConnectionController } from './controllers/connectionController'
 import { ChatController } from './controllers/ChatController'
 import { logger } from '../shared/utils/logger'
-
+import { createVideoRoutes } from './routes/video'
+import { VideoController } from './controllers/videoController'
 export class Server {
     private app: Application
     private port: number
@@ -25,6 +26,7 @@ export class Server {
         private chatController: ChatController,
         private chatMsgController: ChatMsgController,
         private connectionController: ConnectionController,
+        private videoController: VideoController,
         port: number = 3000
     ) {
         this.app = express()
@@ -69,6 +71,7 @@ export class Server {
         this.app.use(`${apiPrefix}/chat-msg`, createChatMsgRoutes(this.chatMsgController))
         this.app.use(`${apiPrefix}/connections`, createConnectionRoutes(this.connectionController))
         this.app.use(`${apiPrefix}/chats`, createChatRoutes(this.chatController))
+        this.app.use(`${apiPrefix}/video`, createVideoRoutes(this.videoController))
 
 
         this.app.use('*', (req, res) => {

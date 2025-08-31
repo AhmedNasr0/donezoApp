@@ -11,14 +11,15 @@ export class JobRepository implements IJobRepository {
 
     async save(job: Job): Promise<void> {
         const query = `
-            INSERT INTO jobs (id, status, created_at, transcription, error)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO jobs (id, status, created_at, transcription,resourceId, error)
+            VALUES ($1, $2, $3, $4, $5 ,$6)
         `
         const values = [
             job.id,
             job.status,
             job.createdAt,
             job.transcription || null,
+            job.resourceId,
             job.error || null
         ]
         
@@ -67,6 +68,11 @@ export class JobRepository implements IJobRepository {
         const values = [job.status, job.transcription || null, job.error || null, job.id]
         
         await this.db.query(query, values)
+    }
+
+    async delete(id: string): Promise<void> {
+        const query = 'DELETE FROM jobs WHERE id = $1'
+        await this.db.query(query, [id])
     }
 }
 

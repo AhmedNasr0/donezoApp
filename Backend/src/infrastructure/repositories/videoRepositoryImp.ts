@@ -77,4 +77,10 @@ export class VideoRepository implements IVideoRepository {
             row.job_id
         )
     }
+
+    async delete(id: string): Promise<void>{
+        const query = 'DELETE FROM videos WHERE id = $1'
+        await this.db.query(query, [id])
+
+    }
 }
