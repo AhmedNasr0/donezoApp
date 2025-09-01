@@ -40,15 +40,15 @@ export class Server {
         this.app.use(helmet())
         this.app.use(corsMiddleware)
 
-        // const limiter = rateLimit({
-        //     windowMs: 15 * 60 * 1000, 
-        //     max: 100, 
-        //     message: {
-        //         success: false,
-        //         message: 'Too many requests, please try again later'
-        //     }
-        // })
-        // this.app.use(limiter)
+        const limiter = rateLimit({
+            windowMs: 15 * 60 * 1000, 
+            max: 100, 
+            message: {
+                success: false,
+                message: 'Too many requests, please try again later'
+            }
+        })
+        this.app.use(limiter)
 
         this.app.use(express.json({ limit: '10mb' }))
         this.app.use(express.urlencoded({ extended: true, limit: '10mb' }))

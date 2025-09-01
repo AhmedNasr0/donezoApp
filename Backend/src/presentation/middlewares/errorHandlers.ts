@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express'
-import { AppError } from '../../shared/errors/appError'
+import { AppError } from '../../shared/errors/AppError'
 import { logger } from '../../shared/utils/logger'
 
 export const errorHandler = (
