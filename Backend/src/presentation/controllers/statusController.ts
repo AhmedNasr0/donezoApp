@@ -1,6 +1,6 @@
 import { Request, Response } from 'express'
 import { GetJobStatusUseCase } from '../../application/use-cases/getJobStatus'
-import { AppError } from '../../shared/errors/appError'
+import { AppError } from '../../shared/errors/AppError'
 import { VideoStatusUseCase } from '../../application/use-cases/getVideoStatus'
 
 export class StatusController {
