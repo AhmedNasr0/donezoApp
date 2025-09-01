@@ -51,7 +51,7 @@ export async function getStautsOfVideo(videoId:string):Promise<string>{
     method: 'GET',
     headers: { 'Content-Type': 'application/json' },
   });
-  console.log(`Video with ID ${videoId} Status :`,res.json())
+  console.log(`Video with ID ${videoId} Status :`,await res.json())
   if (!res.ok) throw new Error('Failed to get video status');
   return res.json();
   }
