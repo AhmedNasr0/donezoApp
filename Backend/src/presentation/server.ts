@@ -49,6 +49,8 @@ export class Server {
             }
         })
         this.app.use(limiter)
+        this.app.set('trust proxy', 1);
+
 
         this.app.use(express.json({ limit: '10mb' }))
         this.app.use(express.urlencoded({ extended: true, limit: '10mb' }))
