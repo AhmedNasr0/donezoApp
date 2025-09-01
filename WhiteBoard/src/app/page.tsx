@@ -17,7 +17,7 @@ import { useSelection } from '@/hooks/use-selection';
 import { useHistory } from '@/hooks/use-history';
 import { useConnections } from '@/hooks/use-connections';
 import { useToast } from '@/hooks/use-toast';
-import { createChat, createConnection, deleteConnection, uploadVideoLink } from '@/lib/api';
+import { createChat, createConnection, deleteConnection, deleteVideo, uploadVideoLink } from '@/lib/api';
 
 export default function WhiteboardPage() {
   const { user, signOut } = useAuth();
@@ -182,7 +182,8 @@ export default function WhiteboardPage() {
     );
   };
 
-  const handleDeleteItem = (id: string) => {
+  const handleDeleteItem = async (id: string) => {
+    
     const itemToDelete = items.find(item => item.id === id);
     if (itemToDelete && !history.isUndoRedoing) {
       history.addToHistory({
@@ -193,7 +194,12 @@ export default function WhiteboardPage() {
     
     setItems((prev) => prev.filter((item) => item.id !== id));
     selection.selectItems([]); // Clear selection when deleting
-  };
+    try{
+      await deleteVideo(id);
+    }catch(error){
+      console.error('Error deleting item:', error);
+    }
+  }
 
   const handleFocusItem = (id: string) => {
     const item = items.find(i => i.id === id);

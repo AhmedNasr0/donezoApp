@@ -60,7 +60,16 @@ export async function sendMessage(chatId:string,message:string){
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({question:message }),
   });
-  console.log(res);
   if (!res.ok) throw new Error('Failed to send message');
   return res.json();
+}
+
+export async function deleteVideo(id:string){
+    const res = await fetch(`${getBaseUrl()}/api/v1/video/${id}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) throw new Error('Failed to delete video');
+    console.log(res)
+    return res.json();
 }
