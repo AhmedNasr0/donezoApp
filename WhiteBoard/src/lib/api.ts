@@ -46,15 +46,20 @@ export async function deleteConnection(connectionId:string){
   return res.json();
 }
 
-export async function getStautsOfVideo(videoId:string):Promise<string>{
+export async function getStautsOfVideo(videoId: string): Promise<string> {
   const res = await fetch(`${getBaseUrl()}/api/v1/status/video/${videoId}`, {
     method: 'GET',
     headers: { 'Content-Type': 'application/json' },
   });
-  console.log(`Video with ID ${videoId} Status :`,await res.json())
+
+  const data = await res.json();
+  console.log(`Video with ID ${videoId} Status :`, data);
+
   if (!res.ok) throw new Error('Failed to get video status');
-  return res.json();
-  }
+
+  return data.status;
+}
+
 
 export async function sendMessage(chatId:string,message:string){
   const res = await fetch(`${getBaseUrl()}/api/v1/chats/send-message/${chatId}`, {
