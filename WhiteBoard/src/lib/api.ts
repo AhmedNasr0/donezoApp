@@ -2,8 +2,8 @@ export type Platform = 'youtube' | 'tiktok' | 'instagram';
 
 const getBaseUrl = () => {
   if (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_BACKEND_URL) return process.env.NEXT_PUBLIC_BACKEND_URL;
-  if (typeof window !== 'undefined') return 'http://localhost:3000';
-  return 'http://backend:3000';
+  if (typeof window !== 'undefined') return 'https://donezoappbackend.onrender.com';
+  return 'https://donezoappbackend.onrender.com';
 };
 
 export async function uploadVideoLink(url: string, platform: Platform, title?: string) : Promise<any> {
