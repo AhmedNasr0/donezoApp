@@ -13,7 +13,6 @@ export const ProcessingOverlay = ({ status }: { status: string }) => {
     }
   }, [status])
 
-  console.log("status in component", status)
 
   const isProcessing = status === "processing"
   const isFailed = status === "failed"

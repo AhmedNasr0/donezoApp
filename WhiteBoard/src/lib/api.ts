@@ -6,7 +6,6 @@ const getBaseUrl = () => {
   return 'http://backend:3000';
 };
 
-console.log("Backend URL is :",getBaseUrl())
 export async function uploadVideoLink(url: string, platform: Platform, title?: string) : Promise<any> {
   const res = await fetch(`${getBaseUrl()}/api/v1/upload`, {
     method: 'POST',
@@ -53,7 +52,6 @@ export async function getStautsOfVideo(videoId: string): Promise<string> {
   });
 
   const data = await res.json();
-  console.log(`Video with ID ${videoId} Status :`, data);
 
   if (!res.ok) throw new Error('Failed to get video status');
 
@@ -77,8 +75,6 @@ export async function deleteVideo(id:string){
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
     });
-    console.log("Item Deleted",res.json())
     if (!res.ok) throw new Error('Failed to delete video');
-    console.log(res)
     return res.json();
 }
