@@ -183,7 +183,11 @@ export default function WhiteboardPage() {
   };
 
   const handleDeleteItem = async (id: string) => {
-    
+    try{
+      await deleteVideo(id);
+    }catch(error){
+      console.error('Error deleting item:', error);
+    }
     const itemToDelete = items.find(item => item.id === id);
     if (itemToDelete && !history.isUndoRedoing) {
       history.addToHistory({
@@ -194,11 +198,7 @@ export default function WhiteboardPage() {
     
     setItems((prev) => prev.filter((item) => item.id !== id));
     selection.selectItems([]); // Clear selection when deleting
-    try{
-      await deleteVideo(id);
-    }catch(error){
-      console.error('Error deleting item:', error);
-    }
+
   }
 
   const handleFocusItem = (id: string) => {
