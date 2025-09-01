@@ -22,9 +22,9 @@ import { ChatUseCase } from './application/use-cases/chatUseCase'
 import { ConnectionUseCase } from './application/use-cases/connectionUseCases'
 import { ConnectionController } from './presentation/controllers/connectionController'
 import { VideoStatusUseCase } from './application/use-cases/getVideoStatus'
-import { LLMOrchestratorService } from "./application/services/llmOrchestratorService";
-import { GeminiService } from "./infrastructure/services/geminiService";
-import { GroqService } from "./infrastructure/services/groqService";
+import { LLMOrchestratorService } from "./application/services/LLMOrchestratorService";
+import { GeminiService } from "./infrastructure/services/GeminiService";
+import { GroqService } from "./infrastructure/services/GroqService";
 import { VideoController } from './presentation/controllers/videoController'
 import { VideoUseCase } from './application/use-cases/videoUseCase'
 
