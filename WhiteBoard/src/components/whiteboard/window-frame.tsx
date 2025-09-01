@@ -44,9 +44,9 @@ export function WindowFrame({ item, items, isLinking, isLinkingFrom, isSelected,
 
     const fetchStatusOnce = async () => {
       try {
-        const status:string = await getStautsOfVideo(item.id)
-        console.log("status of video",status)
-        setStatus(status)
+        const videoResult:any = await getStautsOfVideo(item.id)
+        console.log("status of video",videoResult)
+        setStatus(videoResult.status)
         if (cancelled) return
         if (status  === 'done') {
           onUpdate({ ...item})
