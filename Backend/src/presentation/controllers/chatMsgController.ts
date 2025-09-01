@@ -1,5 +1,5 @@
     import { Request, Response, NextFunction } from 'express'
-    import { ChatMsgUseCase } from '../../application/use-cases/ChatMsgUseCase'
+    import { ChatMsgUseCase } from '../../application/use-cases/chatMsgUseCase'
     import { ChatRequestDTO } from '../../application/dtos/chatRequestDTO'
     import { ValidationError } from '../../shared/errors/validationError'
 

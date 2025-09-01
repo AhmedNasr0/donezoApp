@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { ChatUseCase } from '../../application/use-cases/chatUseCase';
-import { CreateChatRequestDTO, UpdateChatRequestDTO } from '../../application/dtos/ChatDTO';
+import { CreateChatRequestDTO, UpdateChatRequestDTO } from '../../application/dtos/chatDTO';
 import { ValidationError } from '../../shared/errors/validationError';
 
 export class ChatController {

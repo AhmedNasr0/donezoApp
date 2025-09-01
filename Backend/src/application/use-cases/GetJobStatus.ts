@@ -1,6 +1,6 @@
 import { IJobRepository } from '../../domain/repositories/IJobRepository'
-import { JobStatusDTO } from '../dtos/JobStatusDTO'
-import { AppError } from '../../shared/errors/AppError'
+import { JobStatusDTO } from '../dtos/jobStatusDTO'
+import { AppError } from '../../shared/errors/appError'
 
 export class GetJobStatusUseCase {
     constructor(private jobRepository: IJobRepository) {}

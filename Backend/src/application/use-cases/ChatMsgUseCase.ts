@@ -4,7 +4,7 @@ import { IChatMsgRepository } from '../../domain/repositories/IChatMsgRepository
 import { IJobRepository } from '../../domain/repositories/IJobRepository'
 import { LLMService } from '../../domain/services/LLMService'
 import { ChatRequestDTO } from '../dtos/chatRequestDTO'
-import { AppError } from '../../shared/errors/AppError'
+import { AppError } from '../../shared/errors/appError'
 
 export class ChatMsgUseCase {
     constructor(
