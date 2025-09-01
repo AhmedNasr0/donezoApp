@@ -1,12 +1,11 @@
 import { Chat } from "../../domain/entities/chat.entity";
-import { ChatMessage } from "../../domain/entities/chatMsg.entity";
 import { IChatRepository } from "../../domain/repositories/IChatRepository";
 import { IConnectionRepository } from "../../domain/repositories/IConnectionRepository";
-import { CreateChatRequestDTO, UpdateChatRequestDTO } from "../dtos/chatDTO";
+import { CreateChatRequestDTO, UpdateChatRequestDTO } from "../dtos/ChatDTO";
 import { v4 as uuidv4 } from 'uuid';
 import { ChatResponseDTO } from "../dtos/chatRequestDTO";
 import { VideoStatusUseCase } from "./getVideoStatus";
-import { LLMOrchestratorService } from "../services/llmOrchestratorService";
+import { LLMOrchestratorService } from "../services/LLMOrchestratorService";
 export class ChatUseCase {
     constructor(
         private chatRepository: IChatRepository,
