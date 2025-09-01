@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+redis[hiredis]
+asyncpg
+pydantic
+pydantic-settings
+httpx
+supadata
+python-multipart
+whisper-openai
