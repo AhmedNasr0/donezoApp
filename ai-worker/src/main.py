@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+import os
 from fastapi import FastAPI
 
 from src.core.config import settings
@@ -94,11 +95,14 @@ app = FastAPI(
 
 app.include_router(health_router)
 
+port = int(os.getenv("PORT", 8000))
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",
-        port=8000,
+        port=port,
         reload=settings.debug
     )
