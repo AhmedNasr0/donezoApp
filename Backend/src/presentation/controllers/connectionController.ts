@@ -1,135 +1,193 @@
-import { Request, Response, NextFunction } from 'express';
-import { ConnectionUseCase } from '../../application/use-cases/connectionUseCases';
-import { CreateConnectionRequestDTO, UpdateConnectionRequestDTO } from '../../application/dtos/connectionDTO';
-import { ValidationError } from '../../shared/errors/validationError';
+import { Request, Response } from 'express';
+import { IConnectionRepository } from '../../domain/repositories/IConnectionRepository';
+import { IWhiteboardItemRepository } from '../../domain/repositories/IWhiteboardItemRepository';
+import { Connection } from '../../domain/entities/connection.entity';
 
 export class ConnectionController {
-    constructor(private connectionUseCase: ConnectionUseCase) {}
+    constructor(
+        private connectionRepository: IConnectionRepository,
+        private whiteboardItemRepository: IWhiteboardItemRepository
+    ) {}
 
-    async createConnection(req: Request, res: Response, next: NextFunction): Promise<void> {
+    async createConnection(req: Request, res: Response) {
         try {
-            const dto: CreateConnectionRequestDTO = req.body;
+            const { fromId, fromType, toId, toType, connectionType = 'association', label, description } = req.body;
 
-            if (!dto.fromId || !dto.toId || !dto.fromType || !dto.toType) {
-                throw new ValidationError('fromId, toId, fromType, and toType are required');
+            if (!fromId || !toId || !fromType || !toType) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'fromId, toId, fromType, and toType are required'
+                });
             }
 
-            const connection = await this.connectionUseCase.createConnection(dto);
+            const exists = await this.connectionRepository.connectionExists(fromId, toId);
+            if (exists) {
+                return res.status(409).json({
+                    success: false,
+                    message: 'Connection already exists between these items'
+                });
+            }
 
-            res.status(201).json({
+            const fromItem = await this.whiteboardItemRepository.findById(fromId);
+            const toItem = await this.whiteboardItemRepository.findById(toId);
+
+            if (!fromItem || !toItem) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'One or both items not found'
+                });
+            }
+            const newConnection = new Connection(
+                crypto.randomUUID(),
+                fromId,
+                fromType,
+                toId,
+                toType,
+                connectionType,
+                label,
+                description,
+                undefined, // style
+                false, // bidirectional
+                3, // strength
+                undefined, // metadata
+                Date.now(),
+                Date.now(),
+                new Date()
+            );
+
+            const createdConnection = await this.connectionRepository.createConnection(newConnection);
+            return res.status(201).json({
                 success: true,
-                data: connection,
-                message: 'Connection created successfully'
+                data: {
+                    id: createdConnection.id,
+                    fromId: createdConnection.fromId,
+                    toId: createdConnection.toId,
+                    type: createdConnection.type
+                }
             });
+
         } catch (error) {
-            next(error);
+            console.error('Error creating connection:', error);
+            return res.status(500).json({
+                success: false,
+                message: 'Internal server error',
+                error: error instanceof Error ? error.message : 'Unknown error'
+            });
         }
     }
 
-    async getConnectionById(req: Request, res: Response, next: NextFunction): Promise<void> {
+    async deleteConnection(req: Request, res: Response) {
         try {
             const { id } = req.params;
-            if(!id) return
-            const connection = await this.connectionUseCase.getConnectionById(id);
-
-            if (!connection) {
-                res.status(404).json({
+            if(!id) return res.json({
+                success: false,
+                message: 'id is required'
+            })
+            const existingConnection = await this.connectionRepository.findConnectionsByID(id);
+            if (!existingConnection) {
+                return res.status(404).json({
                     success: false,
                     message: 'Connection not found'
                 });
-                return;
             }
 
-            res.json({
-                success: true,
-                data: connection
-            });
-        } catch (error) {
-            next(error);
-        }
-    }
+            await this.connectionRepository.deleteConnection(id);
 
-    async getAllConnections(req: Request, res: Response, next: NextFunction): Promise<void> {
-        try {
-            const connections = await this.connectionUseCase.getAllConnections();
-
-            res.json({
-                success: true,
-                data: connections,
-                count: connections.length
-            });
-        } catch (error) {
-            next(error);
-        }
-    }
-
-    async getConnectionsForEntity(req: Request, res: Response, next: NextFunction): Promise<void> {
-        try {
-            const { entityId, entityType } = req.query;
-            
-            const connections = await this.connectionUseCase.getConnectionsForEntity({
-                entityId: entityId as string,
-                entityType: entityType as string
-            });
-
-            res.json({
-                success: true,
-                data: connections,
-                count: connections.length
-            });
-        } catch (error) {
-            next(error);
-        }
-    }
-
-    async updateConnection(req: Request, res: Response, next: NextFunction): Promise<void> {
-        try {
-            const { id } = req.params;
-            const dto: UpdateConnectionRequestDTO = { ...req.body, id };
-
-            const connection = await this.connectionUseCase.updateConnection(dto);
-
-            res.json({
-                success: true,
-                data: connection,
-                message: 'Connection updated successfully'
-            });
-        } catch (error) {
-            next(error);
-        }
-    }
-
-    async deleteConnection(req: Request, res: Response, next: NextFunction): Promise<void> {
-        try {
-            const { id } = req.params;
-            if(!id) return
-            await this.connectionUseCase.deleteConnection(id);
-
-            res.json({
+            return res.status(200).json({
                 success: true,
                 message: 'Connection deleted successfully'
             });
+
         } catch (error) {
-            next(error);
+            console.error('Error deleting connection:', error);
+            return res.status(500).json({
+                success: false,
+                message: 'Internal server error',
+                error: error instanceof Error ? error.message : 'Unknown error'
+            });
         }
     }
 
-    async disconnectEntities(req: Request, res: Response, next: NextFunction): Promise<void> {
+    async getConnectionsForItem(req: Request, res: Response) {
         try {
-            const { fromId, toId } = req.body;
+            const { itemId } = req.params;
+            const { type } = req.query;
 
-            if (!fromId || !toId) {
-                throw new ValidationError('fromId and toId are required');
+            if(!itemId || !type) return res.json({
+                success: false,
+                message: 'itemId and type are required'
+            })
+
+            const connections = await this.connectionRepository.findConnectionsForEntity(
+                itemId, 
+                type as string
+            );
+
+            return res.status(200).json({
+                success: true,
+                data: connections.map(conn => conn.toFrontendFormat())
+            });
+
+        } catch (error) {
+            console.error('Error getting connections for item:', error);
+            return res.status(500).json({
+                success: false,
+                message: 'Internal server error',
+                error: error instanceof Error ? error.message : 'Unknown error'
+            });
+        }
+    }
+
+    async updateConnection(req: Request, res: Response) {
+        try {
+            const { id } = req.params;
+            const updateData = req.body;
+
+            if(!id) return res.json({
+                success: false,
+                message: 'id is required'
+            })
+
+            const existingConnection = await this.connectionRepository.findConnectionsByID(id);
+            if (!existingConnection) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Connection not found'
+                });
             }
 
-            await this.connectionUseCase.disconnectEntities(fromId, toId);
+            const updatedConnection = new Connection(
+                existingConnection.id,
+                existingConnection.fromId,
+                existingConnection.fromType,
+                existingConnection.toId,
+                existingConnection.toType,
+                updateData.type || existingConnection.type,
+                updateData.label || existingConnection.label,
+                updateData.description || existingConnection.description,
+                updateData.style || existingConnection.style,
+                updateData.bidirectional ?? existingConnection.bidirectional,
+                updateData.strength ?? existingConnection.strength,
+                updateData.metadata || existingConnection.metadata,
+                existingConnection.created,
+                Date.now(),
+                existingConnection.createdAt
+            );
 
-            res.json({
+            const savedConnection = await this.connectionRepository.updateConnection(updatedConnection);
+
+            return res.status(200).json({
                 success: true,
-                message: 'Entities disconnected successfully'
+                data: savedConnection.toFrontendFormat()
             });
+
         } catch (error) {
-            next(error);
+            console.error('Error updating connection:', error);
+            return res.status(500).json({
+                success: false,
+                message: 'Internal server error',
+                error: error instanceof Error ? error.message : 'Unknown error'
+            });
         }
     }
 }

@@ -18,6 +18,28 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   }
 });
 
+
+export async function getCurrentUser() {
+  const { data: { session }, error } = await supabase.auth.getSession()
+  
+  if (error) {
+      throw new Error('Failed to get user session')
+  }
+  
+  return session?.user || null
+}
+
+
+export async function getAuthHeaders() {
+  const { data: { session } } = await supabase.auth.getSession()
+  
+  return {
+      'Content-Type': 'application/json',
+      'Authorization': session?.access_token ? `Bearer ${session.access_token}` : '',
+  }
+}
+
+
 // Types for our database
 export type User = {
   id: string;

@@ -51,7 +51,7 @@ export function WindowFrame({ item, items, isLinking, isLinkingFrom, isSelected,
           onUpdate({ ...item})
         }
         if (status === 'processing' || status === 'pending') {
-          timer = setTimeout(fetchStatusOnce, 3000)
+          timer = setTimeout(fetchStatusOnce, 30000)
         }
       } catch (err) {
         if (!cancelled) {

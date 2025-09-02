@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from src.core.config import settings
-from src.infrastructure.database.postgres_connection import database_connection
+# from src.infrastructure.database.postgres_connection import database_connection
 from src.infrastructure.message_queue.redis_queue import redis_client
 from src.infrastructure.message_queue.queue_consumer import QueueConsumer
 from src.presentation.api.health import router as health_router
@@ -24,7 +24,6 @@ queue_consumer = QueueConsumer()
 async def message_handler(message: dict):
     """Handle queue messages"""
     try:
-        logger.info(f"Processing message: {message}")
         
         job_id = message.get("jobId")
 
@@ -53,7 +52,7 @@ async def lifespan(app: FastAPI):
     
     try:
         # initialize connections
-        await database_connection.connect()
+        # await database_connection.connect()
         await redis_client.initialize()
         
         # queue consumer with multiple workers (depend on the number )
@@ -79,8 +78,8 @@ async def lifespan(app: FastAPI):
             consumer_task.cancel()
             
             await redis_client.close()
-            await database_connection.disconnect()
-            
+            # await database_connection.disconnect()
+            # 
             logger.info("Service shutdown complete")
             
         except Exception as e:

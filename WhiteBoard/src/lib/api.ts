@@ -1,3 +1,6 @@
+import { getCurrentUser } from "./supabase";
+import { WindowItem } from "./types";
+
 export type Platform = 'youtube' | 'tiktok' | 'instagram';
 
 const getBaseUrl = () => {
@@ -6,42 +9,65 @@ const getBaseUrl = () => {
   return 'http://backend:3000';
 };
 
-export async function uploadVideoLink(url: string, platform: Platform, title?: string) : Promise<any> {
-  const res = await fetch(`${getBaseUrl()}/api/v1/upload`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url, platform, title }),
-  });
-  if (!res.ok) throw new Error('Failed to upload video');
-  return res.json();
-}
-export async function createChat(chatName:string){
-  const res = await fetch(`${getBaseUrl()}/api/v1/chats`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_name:chatName }),
-  });
-  if (!res.ok) throw new Error('Failed to create chat');
-  return res.json();
 
-}
-
-export async function createConnection(fromId:string,fromType:string,toId:string,toType:string){
-  const res = await fetch(`${getBaseUrl()}/api/v1/connections`, {
+export async function createChat(chatName: string) {
+  const whiteboard = await getCurrentWhiteboardId()
+  const res = await fetch(`${getBaseUrl()}/api/v1/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fromId:fromId,fromType:fromType,toId:toId,toType:toType }),
+    body: JSON.stringify({ 
+      chat_name: chatName,
+      whiteboardId: whiteboard.id
+    }),
   });
   if (!res.ok) throw new Error('Failed to create chat');
   return res.json();
 }
 
-export async function deleteConnection(connectionId:string){
-  const res = await fetch(`${getBaseUrl()}/api/v1/connections/${connectionId}`, {
+export async function sendMessage(chatId: string, message: string) {
+  const res = await fetch(`${getBaseUrl()}/api/v1/chat/send-message/${chatId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question: message }),
+  });
+  if (!res.ok) throw new Error('Failed to send message');
+  return res.json();
+}
+
+export async function getChatHistory(chatId: string) {
+  const res = await fetch(`${getBaseUrl()}/api/v1/chat/${chatId}/history`, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  if (!res.ok) throw new Error('Failed to get chat history');
+  return res.json();
+}
+
+export async function clearChatHistory(chatId: string) {
+  const res = await fetch(`${getBaseUrl()}/api/v1/chat/${chatId}/history`, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
   });
-  if (!res.ok) throw new Error('Failed to delete chat');
+  if (!res.ok) throw new Error('Failed to clear chat history');
+  return res.json();
+}
+
+export async function deleteChatMessage(messageId: string) {
+  const res = await fetch(`${getBaseUrl()}/api/v1/chat/messages/${messageId}`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  if (!res.ok) throw new Error('Failed to delete message');
+  return res.json();
+}
+
+export async function updateChatMessage(messageId: string, content: string) {
+  const res = await fetch(`${getBaseUrl()}/api/v1/chat/messages/${messageId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content }),
+  });
+  if (!res.ok) throw new Error('Failed to update message');
   return res.json();
 }
 
@@ -59,16 +85,6 @@ export async function getStautsOfVideo(videoId: string): Promise<string> {
 }
 
 
-export async function sendMessage(chatId:string,message:string){
-  const res = await fetch(`${getBaseUrl()}/api/v1/chats/send-message/${chatId}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({question:message }),
-  });
-  if (!res.ok) throw new Error('Failed to send message');
-  return res.json();
-}
-
 export async function deleteVideo(id:string){
 
     const res = await fetch(`${getBaseUrl()}/api/v1/video/${id}`, {
@@ -77,4 +93,274 @@ export async function deleteVideo(id:string){
     });
     if (!res.ok) throw new Error('Failed to delete video');
     return res.json();
+}
+
+export async function getCurrentWhiteboardId(){
+  const currentUser = await getCurrentUser()
+    const response = await fetch(`${getBaseUrl()}/api/v1/whiteboard/user/${encodeURIComponent(currentUser?.email as any)}`, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+    });
+
+    return await response.json()
+}
+
+export async function getWhiteboard() {
+  const currentUser = await getCurrentUser();
+  
+  if (!currentUser) {
+      throw new Error('User not authenticated');
+  }
+  
+  try {
+      const response = await fetch(`${getBaseUrl()}/api/v1/whiteboard/user/${encodeURIComponent(currentUser?.email as any)}`, {
+          method: 'GET',
+          headers: {
+              'Content-Type': 'application/json',
+          },
+      });
+
+      if (response.ok) {
+            const data = await response.json();
+        
+            if (data && data.data) {
+                return data.data; 
+            }
+      }
+
+      // If no whiteboard exists, create a new one
+      const newWhiteboard = await fetch(`${getBaseUrl()}/api/v1/whiteboard/`, {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+              userId: currentUser.email, 
+              title: 'My Whiteboard' 
+          }),
+      });
+      return newWhiteboard.json()
+  } catch (error) {
+      console.error('Error in getWhiteboard:', error);
+      throw error;
+  }
+}
+
+export async function saveWhiteboardState(items: any[], whiteboardId?: string) {
+  const currentUser = await getCurrentUser();
+  
+  if (!currentUser) {
+      throw new Error('User not authenticated');
+  }
+
+  // Extract connections from items
+  const allConnections = items.flatMap(item => item.connections || []);
+
+  try {
+      const response = await fetch(`${getBaseUrl()}/api/v1/whiteboard/${whiteboardId || 'default'}/save-state`, {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+              whiteboardId: whiteboardId || currentUser.id,
+              items: items,
+              connections: allConnections
+          }),
+      });
+
+      if (!response.ok) {
+          throw new Error(`Failed to save whiteboard state: ${response.statusText}`);
+      }
+
+      return response.json();
+  } catch (error) {
+      console.error('Error saving whiteboard state:', error);
+      throw error;
+  }
+}
+
+export async function createConnection(
+  fromId: string,
+  fromType: string,
+  toId: string,
+  toType: string,
+  connectionType: string = 'association',
+  label?: string,
+  description?: string
+) {
+  try {
+      const response = await fetch(`${getBaseUrl()}/api/v1/connections/`, {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+              fromId,
+              fromType,
+              toId,
+              toType,
+              connectionType,
+              label,
+              description
+          }),
+      });
+
+      if (!response.ok) {
+          throw new Error(`Failed to create connection: ${response.statusText}`);
+      }
+
+      return response.json();
+  } catch (error) {
+      console.error('Error creating connection:', error);
+      throw error;
+  }
+}
+
+export async function deleteConnection(connectionId: string) {
+  try {
+      const response = await fetch(`${getBaseUrl()}/api/v1/connections/${connectionId}`, {
+          method: 'DELETE',
+          headers: {
+              'Content-Type': 'application/json',
+          },
+      });
+
+      if (!response.ok) {
+          throw new Error(`Failed to delete connection: ${response.statusText}`);
+      }
+
+      return response.json();
+  } catch (error) {
+      console.error('Error deleting connection:', error);
+      throw error;
+  }
+}
+
+export async function updateConnection(connectionId: string, updateData: any) {
+  try {
+      const response = await fetch(`${getBaseUrl()}/api/v1/connections/${connectionId}`, {
+          method: 'PUT',
+          headers: {
+              'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(updateData),
+      });
+
+      if (!response.ok) {
+          throw new Error(`Failed to update connection: ${response.statusText}`);
+      }
+
+      return response.json();
+  } catch (error) {
+      console.error('Error updating connection:', error);
+      throw error;
+  }
+}
+
+export async function getConnectionsForItem(itemId: string, type?: string) {
+  try {
+      const queryParams = type ? `?type=${encodeURIComponent(type)}` : '';
+      const response = await fetch(`${getBaseUrl()}/api/v1/connections/item/${itemId}${queryParams}`, {
+          method: 'GET',
+          headers: {
+              'Content-Type': 'application/json',
+          },
+      });
+
+      if (!response.ok) {
+          throw new Error(`Failed to get connections: ${response.statusText}`);
+      }
+
+      return response.json();
+  } catch (error) {
+      console.error('Error getting connections for item:', error);
+      throw error;
+  }
+}
+
+export async function updateWhiteboardItem(item: WindowItem) {
+  const currentUser = await getCurrentUser();
+  
+  if (!currentUser) {
+      throw new Error('User not authenticated');
+  }
+  const data ={
+    item,
+    userEmail: currentUser.email,
+  }
+  const response = await fetch(`${getBaseUrl()}/api/v1/whiteboard-item/${item.id}`, {
+      method: 'PUT',
+      headers: {
+          'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+  });
+  
+  if (!response.ok) {
+      throw new Error('Failed to update item');
+  }
+  
+  return response.json();
+}
+
+export async function createWhiteboardItem(item: WindowItem) {
+  const currentUser = await getCurrentUser();
+  
+  if (!currentUser) {
+      throw new Error('User not authenticated');
+  }
+  
+  const whiteboardId = await getCurrentWhiteboardId();
+
+  const data ={
+    item,
+    userEmail: currentUser.email,
+  }
+  data.item.whiteboardId = whiteboardId.data.id
+
+
+  const response = await fetch(`${getBaseUrl()}/api/v1/whiteboard-item/`, {
+      method: 'POST',
+      headers: {
+          'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+  });
+  const res= response.json()
+  
+  if (!response.ok) {
+      throw new Error('Failed to create item');
+  }
+  
+  return res;
+}
+
+export async function deleteWhiteboardItem(id: string) {
+
+  const response = await fetch(`${getBaseUrl()}/api/v1/whiteboard-item/${id}`, {
+      method: 'DELETE',
+  });
+  
+  if (!response.ok) {
+      throw new Error('Failed to delete item');
+  }
+  
+  return response.json();
+}
+
+
+export async function createUser(email:string){
+  const user = await fetch(`${getBaseUrl()}/api/v1/users/`, {
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json'
+    },
+    body:JSON.stringify({email:email})
+
+  })
+
+  return user.json()
 }

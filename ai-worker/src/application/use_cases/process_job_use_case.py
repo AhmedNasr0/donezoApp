@@ -19,11 +19,30 @@ class ProcessJobUseCase:
     async def execute(self, request: JobProcessRequest) -> bool:
         """Process job transcription"""
         try:
-            logger.info(f"Processing job {request.job_id}")
             
             video_url = await self.job_repository.get_video_url_by_job_id(request.job_id)
+            if not video_url:
+                error_msg = f"No video URL found for job {request.job_id}"
+                logger.error(error_msg)
+                await self.job_repository.update_job_status(
+                    request.job_id,
+                    JobStatus.FAILED,
+                    error=error_msg
+                )
+                return False
+                
             
+            # Transcribe video
             transcript = await self.orchestrator.transcribe(video_url)
+            if not transcript:
+                error_msg = f"Empty transcript received for job {request.job_id}"
+                logger.error(error_msg)
+                await self.job_repository.update_job_status(
+                    request.job_id,
+                    JobStatus.FAILED,
+                    error=error_msg
+                )
+                return False
 
             success = await self.job_repository.update_job_status(
                 request.job_id,
@@ -32,18 +51,34 @@ class ProcessJobUseCase:
             )
             
             if success:
-                logger.info(f"Successfully processed job {request.job_id}")
                 return True
             else:
-                logger.error(f"Failed to update job {request.job_id} in database")
+                error_msg = f"Failed to update job {request.job_id} in database"
+                logger.error(error_msg)
+                # Try to update with failed status
+                await self.job_repository.update_job_status(
+                    request.job_id,
+                    JobStatus.FAILED,
+                    error=error_msg
+                )
                 return False
             
-        except Exception as e:
+        except TranscriptionFailed as e:
+            error_msg = f"Transcription failed for job {request.job_id}: {str(e)}"
+            logger.error(error_msg)
             await self.job_repository.update_job_status(
                 request.job_id,
                 JobStatus.FAILED,
                 error=str(e)
             )
+            return False
             
-            logger.error(f"Failed to process job {request.job_id}: {e}")
+        except Exception as e:
+            error_msg = f"Unexpected error processing job {request.job_id}: {str(e)}"
+            logger.error(error_msg)
+            await self.job_repository.update_job_status(
+                request.job_id,
+                JobStatus.FAILED,
+                error=str(e)
+            )
             return False

@@ -30,7 +30,6 @@ export class GroqService implements LLMService {
         });
         const response = await completion.choices[0]?.message?.content
 
-        console.log(response);
         return response || ''
     }
     

@@ -9,7 +9,8 @@ export class Video {
         public readonly platform: videoPlatforms,
         public readonly title: string,
         public readonly createdAt: Date,
-        public jobId?: string
+        public readonly whiteboardId: string,
+        public jobId?: string,
     )
         {
 

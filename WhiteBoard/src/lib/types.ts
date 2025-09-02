@@ -52,6 +52,7 @@ export type WindowItem = {
   isSelected?: boolean;
   isLocked?: boolean;
   groupId?: string;
+  whiteboardId?:string;
 };
 
 export type SelectionBox = {

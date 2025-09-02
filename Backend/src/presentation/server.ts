@@ -5,17 +5,22 @@ import { corsMiddleware } from './middlewares/cors'
 import { errorHandler } from './middlewares/errorHandlers'
 import { createUploadRoutes } from './routes/upload'
 import { createStatusRoutes } from './routes/status'
-import { createChatMsgRoutes } from './routes/chatMsg'
 import { createConnectionRoutes } from './routes/connection'
 import { createChatRoutes } from './routes/chat'
 import { UploadController } from './controllers/uploadController'
 import { StatusController } from './controllers/statusController'
-import { ChatMsgController } from './controllers/chatMsgController'
 import { ConnectionController } from './controllers/connectionController'
 import { ChatController } from './controllers/chatController'
 import { logger } from '../shared/utils/logger'
 import { createVideoRoutes } from './routes/video'
 import { VideoController } from './controllers/videoController'
+import { WhiteboardController } from './controllers/whiteboardController'
+import { createWhiteboardRoutes } from './routes/whiteboard'
+import { UserController } from './controllers/userController'
+import { createUserRoutes } from './routes/user'
+import { createWhiteboardItemRoutes } from './routes/whiteboardItem'
+import { WhiteboardItemController } from './controllers/whiteboardItemController'
+import { create } from 'domain'
 export class Server {
     private app: Application
     private port: number
@@ -24,9 +29,11 @@ export class Server {
         private uploadController: UploadController,
         private statusController: StatusController,
         private chatController: ChatController,
-        private chatMsgController: ChatMsgController,
         private connectionController: ConnectionController,
         private videoController: VideoController,
+        private whiteboardController : WhiteboardController,
+        private userController : UserController,
+        private whiteboardItemController : WhiteboardItemController,
         port: number = 3000
     ) {
         this.app = express()
@@ -59,10 +66,13 @@ export class Server {
 
         this.app.use(`${apiPrefix}/upload`, createUploadRoutes(this.uploadController))
         this.app.use(`${apiPrefix}/status`, createStatusRoutes(this.statusController))
-        this.app.use(`${apiPrefix}/chat-msg`, createChatMsgRoutes(this.chatMsgController))
         this.app.use(`${apiPrefix}/connections`, createConnectionRoutes(this.connectionController))
-        this.app.use(`${apiPrefix}/chats`, createChatRoutes(this.chatController))
+        this.app.use(`${apiPrefix}/chat`, createChatRoutes(this.chatController))
         this.app.use(`${apiPrefix}/video`, createVideoRoutes(this.videoController))
+        this.app.use(`${apiPrefix}/whiteboard`, createWhiteboardRoutes(this.whiteboardController))
+        this.app.use(`${apiPrefix}/users`,createUserRoutes(this.userController))
+        this.app.use(`${apiPrefix}/whiteboard-item`, createWhiteboardItemRoutes(this.whiteboardItemController))
+
 
 
         this.app.use('*', (req, res) => {

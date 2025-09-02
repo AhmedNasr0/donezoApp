@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { createUser } from '@/lib/api';
 
 interface AuthContextType {
   user: User | null;
@@ -53,6 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email,
       password,
     });
+    await createUser(email);
     return { error };
   };
 

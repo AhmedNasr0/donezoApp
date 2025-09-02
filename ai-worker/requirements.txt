@@ -8,3 +8,4 @@ httpx
 supadata
 python-multipart
 whisper-openai
+supabase

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 import logging
-from src.infrastructure.database.postgres_connection import database_connection
+# from src.infrastructure.database.postgres_connection import database_connection
 from src.infrastructure.message_queue.redis_queue import redis_client
 from src.core.config import settings
 
@@ -13,9 +13,9 @@ async def health_check():
     try:
         await redis_client.redis_client.ping()
         
-        pool = database_connection.get_pool()
-        async with pool.acquire() as connection:
-            await connection.fetchval("SELECT 1")
+        # pool = database_connection.get_pool()
+        # async with pool.acquire() as connection:
+        #     await connection.fetchval("SELECT 1")
         
         return {
             "status": "healthy",

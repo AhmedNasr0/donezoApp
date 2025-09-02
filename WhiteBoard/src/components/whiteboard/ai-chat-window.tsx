@@ -8,14 +8,19 @@ import { useToast } from '@/hooks/use-toast';
 import { Bot, MessageCircle, Send, ChevronDown } from 'lucide-react';
 import { Textarea } from '../ui/textarea';
 import type { WindowItem } from '@/lib/types';
-import { sendMessage } from '@/lib/api';
+import { clearChatHistory, deleteChatMessage, getChatHistory, sendMessage } from '@/lib/api';
 import { it } from 'node:test';
 
 
+
 type Message = {
+  id: string;
   role: 'user' | 'ai' | 'assistant';
   content: string;
+  context?: string[];
+  createdAt: Date;
 };
+
 
 interface AiChatWindowProps {
     item: WindowItem;
@@ -29,6 +34,45 @@ export function AiChatWindow({ item, items }: AiChatWindowProps) {
   const [showScrollButton, setShowScrollButton] = React.useState(false);
   const { toast } = useToast();
   const scrollViewportRef = React.useRef<HTMLDivElement>(null);
+  const [isLoadingHistory, setIsLoadingHistory] = React.useState(true);
+
+  React.useEffect(() => {
+    const loadChatHistory = async () => {
+      try {
+        setIsLoadingHistory(true);
+        const response = await getChatHistory(item.id);
+        
+        if (response.success && response.data.messages) {
+          const loadedMessages: Message[] = response.data.messages.map((msg: any) => ({
+            id: msg.id,
+            role: msg.role,
+            content: msg.content,
+            context: msg.context || [],
+            createdAt: new Date(msg.createdAt)
+          }));
+          
+          setMessages(loadedMessages);
+          
+          if (loadedMessages.length > 0) {
+            toast({
+              description: `Loaded ${loadedMessages.length} previous messages`,
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error loading chat history:', error);
+        // Don't show error toast for empty history, just log it
+        console.log('No previous chat history found or error loading history');
+      } finally {
+        setIsLoadingHistory(false);
+      }
+    };
+
+    if (item.id) {
+      loadChatHistory();
+    }
+  }, [item.id, toast]);
+
 
   React.useEffect(() => {
     // Auto-scroll to bottom when new messages are added
@@ -85,36 +129,107 @@ export function AiChatWindow({ item, items }: AiChatWindowProps) {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim()) return;
-
-    const newUserMessage: Message = { role: 'user', content: input };
-    setMessages((prev) => [...prev, newUserMessage]);
-    const currentInput = input;
-    setInput('');
+    if (!input.trim() || isLoading) return;
+  
+    const currentInput = input.trim();
+    setInput(''); 
     setIsLoading(true);
-
+  
+    const userMsg: Message = { 
+      id: Date.now().toString() + '_user', 
+      role: 'user', 
+      content: currentInput,
+      createdAt: new Date()
+    };
+    setMessages((prev) => [...prev, userMsg]);
+  
     try {
-      const response = await sendMessage(item.id , newUserMessage.content)
+      const response = await sendMessage(item.id, currentInput);
       
-      if(!response.ok && response.data.answer == "no Answer"){
-        const aiResponse: Message = { role: 'assistant', content: "Please wait Until Resources Transcript is Ready" };
-        setMessages((prev) => [...prev, aiResponse]);
+      if (!response.ok && response.data.answer === "no Answer") {
+        toast({
+          variant: 'destructive',
+          title: 'No context available',
+          description: 'Please wait until resources are transcribed or connect some content to this chat.',
+        });
+        
+        const aiMsg: Message = { 
+          id: Date.now().toString() + '_ai', 
+          role: 'assistant', 
+          content: "Please wait until resources transcript is ready or connect some content to this chat.",
+          createdAt: new Date()
+        };
+        
+        setMessages((prev) => [...prev, aiMsg]);
         return;
       }
-      const aiResponse: Message = { role: 'assistant', content: response.data.answer };
-      setMessages((prev) => [...prev, aiResponse]);
-
+  
+      const historyResponse = await getChatHistory(item.id);
+      if (historyResponse.success && historyResponse.data.messages) {
+        const loadedMessages: Message[] = historyResponse.data.messages.map((msg: any) => ({
+          id: msg.id,
+          role: msg.role,
+          content: msg.content,
+          context: msg.context || [],
+          createdAt: new Date(msg.createdAt)
+        }));
+        
+        setMessages(loadedMessages);
+      }
+  
     } catch (error) {
-        console.error('Error generating script:', error);
+        console.error('Error generating response:', error);
         toast({
             variant: 'destructive',
             title: 'An error occurred',
             description: 'Failed to get a response from the AI. Please try again.',
         });
-        const aiErrorResponse: Message = { role: 'assistant', content: "Sorry, I couldn't process that request." };
-        setMessages((prev) => [...prev, aiErrorResponse]);
+        
+        const errorMsg: Message = { 
+          id: Date.now().toString() + '_error', 
+          role: 'assistant', 
+          content: "Sorry, I couldn't process that request. Please try again.",
+          createdAt: new Date()
+        };
+        
+        setMessages((prev) => [...prev, errorMsg]);
     } finally {
         setIsLoading(false);
+    }
+  };
+  
+
+  const handleClearHistory = async () => {
+    try {
+      await clearChatHistory(item.id);
+      setMessages([]);
+      toast({
+        description: 'Chat history cleared successfully',
+      });
+    } catch (error) {
+      console.error('Error clearing chat history:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Failed to clear history',
+        description: 'Could not clear chat history. Please try again.',
+      });
+    }
+  };
+
+  const handleDeleteMessage = async (messageId: string) => {
+    try {
+      await deleteChatMessage(messageId);
+      setMessages(prev => prev.filter(msg => msg.id !== messageId));
+      toast({
+        description: 'Message deleted successfully',
+      });
+    } catch (error) {
+      console.error('Error deleting message:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Failed to delete message',
+        description: 'Could not delete message. Please try again.',
+      });
     }
   };
 

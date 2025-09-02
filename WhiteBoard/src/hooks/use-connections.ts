@@ -124,5 +124,6 @@ export function useConnections(items: WindowItem[]) {
     filterConnectionsByType,
     findShortestPath,
     getConnectionStats,
+    setConnections
   };
 }
