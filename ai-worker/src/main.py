@@ -159,6 +159,7 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(f"Error during shutdown: {e}")
 
+# Create FastAPI app
 app = FastAPI(
     title=f"{settings.app_name} API",
     description="Unified video transcription service with API and background processing",
@@ -166,14 +167,15 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# API Endpoints just dummy
+# API Endpoints
 
 @app.get("/")
+@app.head("/")
 async def root():
-    """Root endpoint - required for Render health checks"""
+    """Root endpoint - required for Render health checks (supports both GET and HEAD)"""
     return {
         "service": "Video Transcription Service",
-        "status": "running",
+        "status": "running", 
         "version": "1.0.0",
         "features": ["api", "background_workers"]
     }
@@ -214,7 +216,6 @@ async def submit_job(request: JobSubmissionRequest):
     try:
         job_id = str(uuid.uuid4())
         
-        # Create job message for queue
         job_message = {
             "jobId": job_id,
             "videoUrl": request.video_url,
@@ -249,7 +250,6 @@ async def submit_job(request: JobSubmissionRequest):
 async def get_job_status(job_id: str):
     """Get the current status of a job"""
     try:
-        # Get job info from Redis
         job_info = await redis_client.get_job_info(job_id)
         
         if not job_info:
@@ -289,7 +289,6 @@ async def list_jobs(limit: int = 20, status: str = None):
 async def cancel_job(job_id: str):
     """Cancel a pending or processing job"""
     try:
-        # Check if job exists and can be cancelled
         job_info = await redis_client.get_job_info(job_id)
         
         if not job_info:
@@ -302,7 +301,6 @@ async def cancel_job(job_id: str):
                 detail=f"Cannot cancel job with status: {current_status}"
             )
         
-        # Update status to cancelled
         await redis_client.update_job_status(job_id, "cancelled")
         
         logger.info(f"Job {job_id} cancelled")
@@ -346,9 +344,9 @@ if __name__ == "__main__":
     import uvicorn
     
     uvicorn.run(
-        app,  
-        host="0.0.0.0", 
+        "src.main:app",  
+        host="0.0.0.0",  
         port=port,
-        reload=False,  
+        reload=False,
         access_log=True
     )
