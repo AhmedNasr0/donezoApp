@@ -93,6 +93,11 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}
+
+
 app.include_router(health_router)
 
 port = int(os.getenv("PORT", 8000))
