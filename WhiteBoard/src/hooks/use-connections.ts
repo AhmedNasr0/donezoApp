@@ -9,8 +9,13 @@ export function useConnections(items: WindowItem[]) {
 
   // Extract all connections from items
   React.useEffect(() => {
-    const allConnections = items.flatMap(item => item.connections);
-    setConnections(allConnections);
+    const allConnections = items.flatMap(item => item.connections || []);
+    setConnections(prev => {
+      if (JSON.stringify(prev) !== JSON.stringify(allConnections)) {
+        return allConnections;
+      }
+      return prev;
+    });
   }, [items]);
 
   const addConnection = React.useCallback((fromId: string, toId: string, type?: ConnectionType, backendId?:string) => {
@@ -18,7 +23,16 @@ export function useConnections(items: WindowItem[]) {
     const newConnection = createConnection(backendId,fromId, toId, connectionType);
     
     if (validateConnection(newConnection, items)) {
-      setConnections(prev => [...prev, newConnection]);
+      setConnections(prev => {
+        const exists = prev.some(conn => 
+          conn.from === fromId && conn.to === toId && conn.type === connectionType
+        );
+        
+        if (!exists) {
+          return [...prev, newConnection];
+        }
+        return prev;
+      });
       return newConnection;
     }
     return null;
@@ -109,6 +123,25 @@ export function useConnections(items: WindowItem[]) {
     };
   }, [connections]);
 
+  const replaceConnection = React.useCallback((tempId: string, realConnection: Connection) => {
+    setConnections(prev => 
+      prev.map(conn => 
+        conn.id === tempId ? realConnection : conn
+      )
+    );
+  }, []);
+
+  const batchUpdateConnections = React.useCallback((updates: Connection[]) => {
+    setConnections(prev => {
+      const updateMap = new Map(updates.map(conn => [conn.id, conn]));
+      return prev.map(conn => updateMap.get(conn.id) || conn);
+    });
+  }, []);
+
+  const clearAllConnections = React.useCallback(() => {
+    setConnections([]);
+  }, []);
+
   return {
     connections,
     selectedConnectionType,
@@ -124,6 +157,9 @@ export function useConnections(items: WindowItem[]) {
     filterConnectionsByType,
     findShortestPath,
     getConnectionStats,
-    setConnections
+    setConnections,
+    replaceConnection,
+    batchUpdateConnections,
+    clearAllConnections
   };
 }

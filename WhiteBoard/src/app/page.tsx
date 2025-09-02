@@ -106,7 +106,6 @@ export default function WhiteboardPage() {
     loadInitialState();
   }, []);
 
-  // Auto-save functionality
   const triggerAutoSave = React.useCallback(async () => {
     if (autoSaveTimer.current) {
       clearTimeout(autoSaveTimer.current);
@@ -114,14 +113,18 @@ export default function WhiteboardPage() {
     
     autoSaveTimer.current = setTimeout(async () => {
       try {
-        // Include connections in the save
-        await saveWhiteboardState(items, whiteboardId || undefined);
-        setLastSaved(new Date());
+        const hasChanges = lastSaved === null || 
+          (new Date().getTime() - lastSaved.getTime()) > 10000; 
+        
+        if (hasChanges) {
+          await saveWhiteboardState(items, whiteboardId || undefined);
+          setLastSaved(new Date());
+        }
       } catch (error) {
         console.error('Auto-save failed:', error);
       }
-    }, 2000); 
-  }, [items, whiteboardId, connections.connections]);
+    }, 3000); 
+  }, [items, whiteboardId, lastSaved]);
 
   // Trigger auto-save when items change
   React.useEffect(() => {
@@ -282,27 +285,59 @@ export default function WhiteboardPage() {
         });
     }
   };
+  const debouncedUpdateTimer = React.useRef<NodeJS.Timeout>();
 
-  const handleUpdateItem = async (updatedItem: WindowItem) => {
-    if (!history.isUndoRedoing) {
-      const oldItem = items.find(item => item.id === updatedItem.id);
-      if (oldItem) {
-        history.addToHistory({
-          type: 'update',
-          items: [oldItem],
-        });
+  const handleUpdateItem = async (updatedItem: WindowItem, immediate = false) => {
+      setItems((prev) =>
+        prev.map((item) => (item.id === updatedItem.id ? updatedItem : item))
+      );
+      
+      if (!history.isUndoRedoing) {
+        const oldItem = items.find(item => item.id === updatedItem.id);
+        if (oldItem) {
+          history.addToHistory({
+            type: 'update',
+            items: [oldItem],
+          });
+        }
       }
-    }
-    try {
-      const savedItem = await updateWhiteboardItem(updatedItem);
-    } catch (error) {
-        console.error('Error saving item to database:', error);
-    }
+      
+      if (debouncedUpdateTimer.current) {
+        clearTimeout(debouncedUpdateTimer.current);
+      }
+      
+      if (immediate) {
+        try {
+          await updateWhiteboardItem(updatedItem);
+        } catch (error) {
+          console.error('Error saving item to database:', error);
+        }
+      } else {
+        debouncedUpdateTimer.current = setTimeout(async () => {
+          try {
+            await updateWhiteboardItem(updatedItem);
+          } catch (error) {
+            console.error('Error saving item to database:', error);
+          }
+        }, 500); 
+      }
+    };
+
+    const handleItemMove = (updatedItem: WindowItem) => {
+      setItems((prev) =>
+        prev.map((item) => (item.id === updatedItem.id ? updatedItem : item))
+      );
+    };
+
+    const handleItemMoveEnd = async (updatedItem: WindowItem) => {
+      try {
+        await updateWhiteboardItem(updatedItem);
+      } catch (error) {
+        console.error('Error saving item position:', error);
+      }
+    };
+
     
-    setItems((prev) =>
-      prev.map((item) => (item.id === updatedItem.id ? updatedItem : item))
-    );
-  };
 
   const handleDeleteItem = async (id: string) => {
     try {
@@ -355,101 +390,85 @@ export default function WhiteboardPage() {
       const toItem = items.find(item => item.id === id);
       
       if (fromItem && toItem) {
-        // Check if connection already exists
         const existingConnections = connections.getConnectionsBetween(linking.from, id);
-        
         if (existingConnections.length > 0) {
           const existingConnection = existingConnections[0];
           
-          try {
-            // Delete from backend first
-            await deleteConnection(existingConnection.id);
-            
-            // Then delete from frontend state
-            connections.deleteConnection(existingConnection.id);
-            
-            // Update the item's connections array
-            const updatedFromItem = {
-              ...fromItem,
-              connections: fromItem.connections.filter(c => c.id !== existingConnection.id)
-            };
-            await handleUpdateItem(updatedFromItem);
-            
-            if (!history.isUndoRedoing) {
-              history.addToHistory({
-                type: 'disconnect',
-                items: [fromItem],
-                connections: [existingConnection],
-              });
-            }
-            
-            toast({
-              description: "Connection removed successfully.",
+          connections.deleteConnection(existingConnection.id);
+          
+          const updatedFromItem = {
+            ...fromItem,
+            connections: fromItem.connections.filter(c => c.id !== existingConnection.id)
+          };
+          
+          setItems(prev => prev.map(item => 
+            item.id === fromItem.id ? updatedFromItem : item
+          ));
+          
+          if (!history.isUndoRedoing) {
+            history.addToHistory({
+              type: 'disconnect',
+              items: [fromItem],
+              connections: [existingConnection],
             });
-            
+          }
+          
+          try {
+            await deleteConnection(existingConnection.id);
+            toast({ description: "Connection removed successfully." });
           } catch (error) {
-            console.error('Error deleting connection:', error);
+            connections.addConnection(linking.from, id, 'association', existingConnection.id);
+            setItems(prev => prev.map(item => 
+              item.id === fromItem.id ? fromItem : item
+            ));
+            
             toast({
               variant: "destructive",
               title: "Failed to remove connection",
               description: `Could not remove connection. Please try again.`,
             });
           }
-        } else {
-          try {
-            // Create connection in backend first
-            
-            const newConnectionFromBackend = await createConnection(
-              fromItem.id,
-              fromItem.type,
-              toItem.id,
-              toItem.type
-            );
-            
-            if (newConnectionFromBackend?.success) {
-              // Add to frontend state
-              const newConnection = connections.addConnection(
-                linking.from, 
-                id, 
-                'association', 
-                newConnectionFromBackend.data.id
+        }
+          else {
+            try {
+              const newConnectionFromBackend = await createConnection(
+                fromItem.id,
+                fromItem.type,
+                toItem.id,
+                toItem.type
               );
               
-              if (newConnection) {
-                // Update the from item with the new connection
-                const updatedFromItem = {
-                  ...fromItem,
-                  connections: [...fromItem.connections, newConnection]
-                };
-                await handleUpdateItem(updatedFromItem);
+              if (newConnectionFromBackend?.success) {
+                const realConnection = connections.addConnection(
+                  linking.from, 
+                  id, 
+                  'association', 
+                  newConnectionFromBackend.data.id
+                );
                 
-                if (!history.isUndoRedoing) {
-                  history.addToHistory({
-                    type: 'connect',
-                    items: [fromItem],
-                    connections: [newConnection],
-                  });
+                if (realConnection) {
+                  await handleUpdateItem({
+                    ...fromItem,
+                    connections: [...fromItem.connections, realConnection]
+                  }, true); 
+                  
+                  toast({ description: "Items connected successfully" });
                 }
-                
-                toast({
-                  description: "Items connected successfully",
-                });
               }
+            } catch (error) {
+              toast({
+                variant: "destructive",
+                title: "Failed to create connection",
+                description: "Could not create connection. Please try again.",
+              });
             }
-          } catch (error) {
-            console.error('Error creating connection:', error);
-            toast({
-              variant: "destructive",
-              title: "Failed to create connection",
-              description: `Could not create connection. Please try again.`,
-            });
           }
         }
+        
+        setLinking(null);
       }
-      
-      setLinking(null);
-    }
-  };
+    };
+  
 
   const handleZoom = (direction: 'in' | 'out' | 'reset') => {
     if (direction === 'in') {
