@@ -9,3 +9,4 @@ supadata
 python-multipart
 whisper-openai
 supabase
+python-dotenv
