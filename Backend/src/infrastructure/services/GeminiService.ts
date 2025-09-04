@@ -1,6 +1,7 @@
 import { LLMService } from '../../domain/services/LLMService'
 
 import { GoogleGenAI } from "@google/genai"
+import { getfullPrompt } from '../../shared/utils/Prompt';
 
 export class GeminiService implements LLMService {
     private ai = new GoogleGenAI({
@@ -11,15 +12,7 @@ export class GeminiService implements LLMService {
         // Placeholder for OpenAI integration
         // In real implementation, you would call OpenAI API here
         
-        const prompt = `
-        Based on the following transcriptions from videos, please answer the question:
-
-        Context:${context}
-
-        Question: ${question}
-
-        Please provide a helpful answer based on the information from the video transcriptions.
-        `
+        const prompt = getfullPrompt(question, context)
         const response = await this.ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: prompt,

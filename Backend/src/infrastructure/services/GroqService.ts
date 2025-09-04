@@ -1,6 +1,7 @@
 import { LLMService } from '../../domain/services/LLMService'
 
 import Groq from "groq-sdk";
+import { getfullPrompt } from '../../shared/utils/Prompt';
 
 
 
@@ -9,15 +10,8 @@ export class GroqService implements LLMService {
 
     async generateResponse(question: string, context: string): Promise<string> {
         
-        const prompt = `
-        Based on the following transcriptions from videos, please answer the question:
+        const prompt = getfullPrompt(question, context)
 
-        Context:${context}
-
-        Question: ${question}
-
-        Please provide a helpful answer based on the information from the video transcriptions.
-        `
         const completion = await this.groq.chat.completions
         .create({
             messages: [
