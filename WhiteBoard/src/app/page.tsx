@@ -3,7 +3,7 @@
 'use client';
 
 import * as React from 'react';
-import type { WindowItem, WindowType } from '@/lib/types';
+import type { Connection, WindowItem, WindowType } from '@/lib/types';
 import { WhiteboardCanvas } from '@/components/whiteboard/whiteboard-canvas';
 import { Sidebar } from '@/components/whiteboard/sidebar';
 import { TopBar } from '@/components/whiteboard/top-bar';
@@ -58,53 +58,89 @@ export default function WhiteboardPage() {
   const autoSaveTimer = React.useRef<NodeJS.Timeout>();
 
 
-  React.useEffect(() => {
-    const loadInitialState = async () => {
-      try {
-        setIsLoading(true);
-        const response = await getWhiteboard();
-        if (response) {
-          const { items: loadedItems, connections: loadedConnections, id, chatData } = response;
+  // Helper function to convert backend connection format to frontend format
+const convertConnectionToFrontendFormat = (backendConnection: any): Connection => {
+  return {
+    id: backendConnection.id,
+    from: backendConnection.fromId,
+    to: backendConnection.toId,
+    type: backendConnection.type || 'association',
+    label: backendConnection.label || null,
+    description: backendConnection.description || null,
+    bidirectional: backendConnection.bidirectional || false,
+    strength: backendConnection.strength || 3,
+    created: backendConnection.created || Date.now(),
+    updated: backendConnection.updated || Date.now(),
+    style: backendConnection.style || null,
+  };
+};
 
-          setWhiteboardId(id);
-          setItems((loadedItems || []).map((item: any) => ({
-            ...item,
-            connections: item.connections || [] 
-          })));
-          
-          
-          if (loadedConnections && loadedConnections.length > 0) {
+React.useEffect(() => {
+  const loadInitialState = async () => {
+    try {
+      setIsLoading(true);
+      const response = await getWhiteboard();
+      if (response) {
+        const { items: loadedItems, id, chatData } = response;
 
-            connections.setConnections([]);
+        setWhiteboardId(id);
+        
+        const processedItems = (loadedItems || []).map((item: any) => ({
+          ...item,
+          connections: item.connections || []  
+        }));
+        
+        setItems(processedItems);
 
-
-            loadedConnections.forEach((conn: any) => {
-              connections.addConnection(conn.fromId, conn.toId, conn.type || 'association', conn.id);
+        
+        const connectionMap = new Map<string, Connection>();
+        
+        processedItems.forEach((item: WindowItem) => {
+          if (item.connections && Array.isArray(item.connections) && item.connections.length > 0) {
+            item.connections.forEach((connection: any) => {
+              if (connectionMap.has(connection.id)) {
+                return;
+              }
+              
+              const convertedConnection = convertConnectionToFrontendFormat(connection);
+              
+              if (convertedConnection.from && convertedConnection.to) {
+                connectionMap.set(connection.id, convertedConnection);
+                console.log('Added connection:', convertedConnection.id, convertedConnection.from, '->', convertedConnection.to);
+              }
             });
           }
-
-          const maxZ = loadedItems.reduce((max: number, item: WindowItem) => 
-            Math.max(max, item.zIndex || 1), 0);
-          setActiveZIndex(maxZ);
-          
-          toast({
-            description: `Loaded ${loadedItems.length} items from previous session`,
-          });
-        }
-      } catch (error) {
-        console.error('Error loading whiteboard state:', error);
-        toast({
-          variant: 'destructive',
-          title: 'Failed to load previous session',
-          description: 'Starting with a fresh whiteboard.',
         });
-      } finally {
-        setIsLoading(false);
-      }
-    };
 
-    loadInitialState();
-  }, []);
+        const allConnections = Array.from(connectionMap.values());
+        
+        
+        connections.setConnections(allConnections);
+        
+
+        const maxZ = processedItems.reduce((max: number, item: WindowItem) => 
+          Math.max(max, item.zIndex || 1), 0);
+        setActiveZIndex(maxZ);
+        
+        toast({
+          description: `Loaded ${processedItems.length} items and ${allConnections.length} connections from previous session`,
+        });
+      }
+    } catch (error) {
+      console.error('Error loading whiteboard state:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Failed to load previous session',
+        description: 'Starting with a fresh whiteboard.',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  loadInitialState();
+}, []);
+
 
   const triggerAutoSave = React.useCallback(async () => {
     if (autoSaveTimer.current) {
@@ -117,8 +153,13 @@ export default function WhiteboardPage() {
           (new Date().getTime() - lastSaved.getTime()) > 10000; 
         
         if (hasChanges) {
-          await saveWhiteboardState(items, whiteboardId || undefined);
+          if (whiteboardId) {
+          await saveWhiteboardState(items, whiteboardId);
           setLastSaved(new Date());
+          }
+          else{
+            console.log("No whiteboard id found")
+          }
         }
       } catch (error) {
         console.error('Auto-save failed:', error);
@@ -390,8 +431,11 @@ export default function WhiteboardPage() {
       const toItem = items.find(item => item.id === id);
       
       if (fromItem && toItem) {
-        const existingConnections = connections.getConnectionsBetween(linking.from, id);
-        if (existingConnections.length > 0) {
+        const existingConnections = [
+          ...connections.getConnectionsBetween(linking.from, id),
+          ...connections.getConnectionsBetween(id, linking.from)
+        ];
+                if (existingConnections.length > 0) {
           const existingConnection = existingConnections[0];
           
           connections.deleteConnection(existingConnection.id);
@@ -401,9 +445,15 @@ export default function WhiteboardPage() {
             connections: fromItem.connections.filter(c => c.id !== existingConnection.id)
           };
           
-          setItems(prev => prev.map(item => 
-            item.id === fromItem.id ? updatedFromItem : item
-          ));
+          setItems(prev => prev.map(item => {
+            if (item.id === fromItem.id || item.id === toItem.id) {
+              return {
+                ...item,
+                connections: item.connections.filter(c => c.id !== existingConnection.id)
+              };
+            }
+            return item;
+          }));
           
           if (!history.isUndoRedoing) {
             history.addToHistory({
@@ -817,7 +867,6 @@ export default function WhiteboardPage() {
       item.type.toLowerCase().includes(searchQuery.toLowerCase())
     );
   }, [items, searchQuery]);
-  
   return (
     <ProtectedRoute>
       <div className="relative h-dvh w-full overflow-hidden antialiased">

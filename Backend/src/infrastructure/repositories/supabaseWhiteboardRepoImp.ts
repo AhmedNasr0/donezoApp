@@ -1,5 +1,6 @@
 import { Connection } from "../../domain/entities/connection.entity";
 import { Whiteboard } from "../../domain/entities/whiteboard.entity";
+import { WhiteboardItem } from "../../domain/entities/whiteboardItem.entity";
 import { IConnectionRepository } from "../../domain/repositories/IConnectionRepository";
 import { IWhiteboardRepository } from "../../domain/repositories/IWhiteboardRepository";
 import { supabase } from "../database/supabase_client";
@@ -56,18 +57,26 @@ export class WhiteboardRepository implements IWhiteboardRepository {
         if (error) throw error;
     }
 
-    async saveWhiteboardWithConnections(whiteboardId: string, items: any[], connections: any[]): Promise<Whiteboard> {
+    async saveWhiteboardWithConnections(whiteboardId: string, items: WhiteboardItem[]): Promise<Whiteboard> {
         // delete old connections
         await supabase.from('connections').delete().eq('whiteboard_id', whiteboardId);
 
-        // insert new connections
-        if (connections.length > 0) {
-            const connectionObjects = connections.map(conn =>
-                Connection.fromFrontendConnection(conn, conn.fromType || 'unknown', conn.toType || 'unknown')
-            );
 
-            for (const conn of connectionObjects) {
-                await this.connectionRepository.createConnection(conn);
+        const allRelatedConnections = items.flatMap(item => item.connections);
+
+        // remove dublicated Id
+        const uniqueConnections = Array.from(
+        new Map(allRelatedConnections.map(conn => [conn.id, conn])).values()
+        );
+
+
+
+        // insert new connections
+        if (uniqueConnections.length > 0) {
+            for (const conn of uniqueConnections) {
+                if (conn) {
+                    await this.connectionRepository.createConnection(conn);
+                }
             }
         }
 

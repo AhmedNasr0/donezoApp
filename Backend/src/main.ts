@@ -55,7 +55,7 @@ async function bootstrap(): Promise<void> {
         const chatRepository = new ChatRepository()
         const connectionRepository = new ConnectionRepository()
         const whiteboardRepository = new WhiteboardRepository(connectionRepository)
-        const whiteboardItemRepository = new WhiteboardItemRepository()
+        const whiteboardItemRepository = new WhiteboardItemRepository(connectionRepository)
 
 
 

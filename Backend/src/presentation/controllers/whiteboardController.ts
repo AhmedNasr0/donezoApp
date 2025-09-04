@@ -31,19 +31,15 @@ export class WhiteboardController {
                 });
             }
 
-            // Get all connections for this whiteboard
-            const connections = await this.connectionRepository.findConnectionsByWhiteboard(whiteboard.id);
 
             // Get all items for this whiteboard
-            const items = await this.whiteboardItemRepository.findByWhiteboardId(whiteboard.id);
-
+            const items = await this.whiteboardItemRepository.findItemsByWhiteboardId(whiteboard.id);
             return res.status(200).json({
                 success: true,
                 data: {
                     id: whiteboard.id,
                     title: whiteboard.title,
                     items: items,
-                    connections: connections.map(conn => conn.toFrontendFormat()),
                     chatData: null // Add if needed
                 }
             });
@@ -74,20 +70,15 @@ export class WhiteboardController {
                     message: 'Whiteboard not found'
                 });
             }
-
-            // Get all connections for this whiteboard
-            const connections = await this.connectionRepository.findConnectionsByWhiteboard(id);
             
             // Get all items for this whiteboard
-            const items = await this.whiteboardItemRepository.findByWhiteboardId(id);
-
+            const items = await this.whiteboardItemRepository.findItemsByWhiteboardId(id);
             return res.status(200).json({
                 success: true,
                 data: {
                     id: whiteboard.id,
                     title: whiteboard.title,
                     items: items,
-                    connections: connections.map(conn => conn.toFrontendFormat()),
                     chatData: null
                 }
             });
@@ -191,7 +182,7 @@ export class WhiteboardController {
 
     async saveWhiteboardState(req: Request, res: Response) {
         try {
-            const { whiteboardId, items, connections } = req.body;
+            const { whiteboardId, items } = req.body;
 
             if (!whiteboardId) {
                 return res.status(400).json({
@@ -203,8 +194,7 @@ export class WhiteboardController {
             // Save the complete state including connections
             const savedWhiteboard = await this.whiteboardRepository.saveWhiteboardWithConnections(
                 whiteboardId,
-                items || [],
-                connections || []
+                items || []
             );
 
             return res.status(200).json({

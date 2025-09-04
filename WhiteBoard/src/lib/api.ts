@@ -159,7 +159,7 @@ export async function saveWhiteboardState(items: any[], whiteboardId?: string) {
   const allConnections = items.flatMap(item => item.connections || []);
 
   try {
-      const response = await fetch(`${getBaseUrl()}/api/v1/whiteboard/${whiteboardId || 'default'}/save-state`, {
+      const response = await fetch(`${getBaseUrl()}/api/v1/whiteboard/${whiteboardId }/save-state`, {
           method: 'POST',
           headers: {
               'Content-Type': 'application/json',
@@ -167,7 +167,6 @@ export async function saveWhiteboardState(items: any[], whiteboardId?: string) {
           body: JSON.stringify({
               whiteboardId: whiteboardId || currentUser.id,
               items: items,
-              connections: allConnections
           }),
       });
 

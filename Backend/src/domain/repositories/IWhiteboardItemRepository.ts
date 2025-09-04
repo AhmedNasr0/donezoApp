@@ -7,6 +7,6 @@ export interface IWhiteboardItemRepository{
     deleteItem(id: string): Promise<void>,
     createItem(item: WhiteboardItem): Promise<WhiteboardItem>,
     findById(id:string):Promise<WhiteboardItem|null>,
-    findByWhiteboardId(whiteboardId: string):Promise<WhiteboardItem[]>
+    findItemsByWhiteboardId(whiteboardId: string):Promise<WhiteboardItem[]>
 
 }

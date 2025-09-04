@@ -9,8 +9,7 @@ export interface IWhiteboardRepository {
     
     saveWhiteboardWithConnections(
         whiteboardId: string, 
-        items: any[], 
-        connections: Connection[]
+        items: any[],
     ): Promise<Whiteboard>;
     
     getWhiteboardWithConnections(whiteboardId: string): Promise<{

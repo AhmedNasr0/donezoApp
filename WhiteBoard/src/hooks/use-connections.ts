@@ -7,16 +7,25 @@ export function useConnections(items: WindowItem[]) {
   const [selectedConnectionType, setSelectedConnectionType] = React.useState<ConnectionType>('association');
   const [editingConnection, setEditingConnection] = React.useState<Connection | null>(null);
 
-  // Extract all connections from items
+  // Extract all connections from items, remove duplicates by id
   React.useEffect(() => {
     const allConnections = items.flatMap(item => item.connections || []);
+
+    const uniqueConnections = Array.from(
+      new Map(allConnections.map(conn => [conn.id, conn])).values()
+    );
+
     setConnections(prev => {
-      if (JSON.stringify(prev) !== JSON.stringify(allConnections)) {
-        return allConnections;
+      const prevIds = prev.map(c => c.id).sort().join(",");
+      const newIds = uniqueConnections.map(c => c.id).sort().join(",");
+      if (prevIds !== newIds) {
+        return uniqueConnections;
       }
       return prev;
     });
   }, [items]);
+
+  
 
   const addConnection = React.useCallback((fromId: string, toId: string, type?: ConnectionType, backendId?:string) => {
     const connectionType = type || selectedConnectionType;  

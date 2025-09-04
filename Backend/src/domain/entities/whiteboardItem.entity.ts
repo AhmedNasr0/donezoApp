@@ -1,3 +1,5 @@
+import { Connection } from "./connection.entity";
+
 export class WhiteboardItem {
     constructor(
         public id: string,
@@ -11,6 +13,7 @@ export class WhiteboardItem {
         public isLocked: boolean = false,
         public createdAt: Date = new Date(),
         public updatedAt: Date = new Date(),
+        public connections:Connection[]=[],
         public whiteboardId: string,
     ) {}
 }
