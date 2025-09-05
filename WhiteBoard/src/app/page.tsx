@@ -511,6 +511,7 @@ React.useEffect(() => {
                 title: "Failed to create connection",
                 description: "Could not create connection. Please try again.",
               });
+              console.log("failed to create connection",error)
             }
           }
         }

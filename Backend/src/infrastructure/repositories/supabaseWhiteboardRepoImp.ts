@@ -65,20 +65,36 @@ export class WhiteboardRepository implements IWhiteboardRepository {
         const allRelatedConnections = items.flatMap(item => item.connections);
 
         // remove dublicated Id
-        const uniqueConnections = Array.from(
+        const uniqueConnections: any[] = Array.from(
         new Map(allRelatedConnections.map(conn => [conn.id, conn])).values()
         );
 
 
 
         // insert new connections
-        if (uniqueConnections.length > 0) {
-            for (const conn of uniqueConnections) {
-                if (conn) {
-                    await this.connectionRepository.createConnection(conn);
+            if (uniqueConnections.length > 0) {
+                for (const rawConn of uniqueConnections) {
+                if (rawConn) {
+                    const conn = {
+                    id: rawConn.id,
+                    fromId: rawConn.fromId ?? rawConn.from,     
+                    toId: rawConn.toId ?? rawConn.to,
+                    fromType: rawConn.fromType ?? (items.find(i => i.id === rawConn.from)?.type),
+                    toType: rawConn.toType ?? (items.find(i => i.id === rawConn.to)?.type),
+                    type: rawConn.type ?? rawConn.connectionType ?? 'association',
+                    label: rawConn.label ?? null,
+                    description: rawConn.description ?? null,
+                    style: rawConn.style ?? null,
+                    bidirectional: rawConn.bidirectional ?? false,
+                    strength: rawConn.strength ?? 3,
+                    metadata: rawConn.metadata ?? null,
+                    };
+            
+                    await this.connectionRepository.createConnection(conn as any);
+                }
                 }
             }
-        }
+  
 
         const whiteboard = await this.getById(whiteboardId);
         return whiteboard!;

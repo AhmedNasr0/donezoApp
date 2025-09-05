@@ -17,7 +17,7 @@ export class WhiteboardItemController {
             const { whiteboardId } = req.params;
             if(!whiteboardId) return res.json({message: "whiteboardId is required"});
 
-            const items = await this.repository.findByWhiteboardId(whiteboardId);
+            const items = await this.repository.findItemsByWhiteboardId(whiteboardId);
             res.json(items);
         } catch (error: any) {
             console.error("Error fetching whiteboard items:", error);
@@ -56,6 +56,7 @@ export class WhiteboardItemController {
                 item.isLocked,
                 new Date(),
                 new Date(),
+                item.connections,
                 item.whiteboardId
             );
 
@@ -94,6 +95,7 @@ export class WhiteboardItemController {
                 req.body.isLocked ?? existing.isLocked,
                 existing.createdAt,
                 new Date(),
+                req.body.connections ?? existing.connections,
                 req.body.whiteboardId ?? existing.whiteboardId
             );
 

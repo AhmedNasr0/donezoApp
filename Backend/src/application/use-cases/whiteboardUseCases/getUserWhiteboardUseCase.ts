@@ -5,7 +5,7 @@ export class GetUserWhiteboardUseCase{
     constructor(private whiteboardRepo: IWhiteboardRepository) {}
 
     async excute(userId:string) : Promise<Whiteboard>{
-        const whiteboard = await this.whiteboardRepo.getUserwhiteboard(userId);
+        const whiteboard = await this.whiteboardRepo.getUserWhiteboard(userId);
         if(!whiteboard) throw new Error('Whiteboard not found');
         return whiteboard;
     }

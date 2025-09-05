@@ -4,33 +4,74 @@ import { supabase } from '../database/supabase_client';
 
 export class ConnectionRepository implements IConnectionRepository {
     async createConnection(connection: Connection): Promise<Connection> {
-        const { data, error } = await supabase
-            .from('connections')
-            .insert([
-                {
-                    id: connection.id,
-                    from_id: connection.fromId,
-                    from_type: connection.fromType,
-                    to_id: connection.toId,
-                    to_type: connection.toType,
-                    connection_type: connection.type,
-                    label: connection.label,
-                    description: connection.description,
-                    style: connection.style,
-                    bidirectional: connection.bidirectional,
-                    strength: connection.strength,
-                    metadata: connection.metadata,
-                    created_timestamp: connection.created,
-                    updated_timestamp: connection.updated,
-                    whiteboard_id: await this.getWhiteboardIdFromItem(connection.fromId)
-                }
-            ])
-            .select()
-            .single();
-
-        if (error) throw error;
-        return this.mapRowToConnection(data);
+        if (!connection.fromId || !connection.toId) {
+            throw new Error('Connection must have valid fromId and toId');
+          }
+      
+          if (connection.fromId === connection.toId) {
+            throw new Error('Cannot create self-connection');
+          }
+      
+          const existingConnection = await this.getConnectionBetweenItems(
+            connection.fromId, 
+            connection.toId
+          );
+      
+          if (existingConnection) {
+            throw new Error('Connection already exists between these items');
+          }
+      
+          try {
+            const { data, error } = await supabase
+              .from('connections')
+              .insert([{
+                id: connection.id || crypto.randomUUID(),
+                from_id: connection.fromId,
+                from_type: connection.fromType,
+                to_id: connection.toId,
+                to_type: connection.toType,
+                connection_type: connection.type,
+                label: connection.label || null,
+                description: connection.description || null,
+                bidirectional: connection.bidirectional || false,
+                strength: connection.strength || 3,
+                style: connection.style || null,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+                created_timestamp: Date.now(),
+                updated_timestamp: Date.now(),
+                metadata: connection.metadata || null,
+                whiteboard_id: await this.getWhiteboardIdFromItem(connection.fromId)
+              }])
+              .select()
+              .single();
+      
+            if (error) {
+              console.error('Supabase error creating connection:', error);
+              throw new Error(`Database error: ${error.message}`);
+            }
+      
+            return data;
+          } catch (error) {
+            console.error('Error creating connection:', error);
+            throw error;
+          }
     }
+
+    async getConnectionBetweenItems(fromId: string, toId: string) {
+        const { data, error } = await supabase
+          .from('connections')
+          .select('*')
+          .or(`and(from_id.eq.${fromId},to_id.eq.${toId}),and(from_id.eq.${toId},to_id.eq.${fromId})`)
+          .limit(1);
+    
+        if (error) {
+          console.error('Error checking existing connection:', error);
+          return null;
+        }
+    
+        return data?.[0] || null;
+      }
 
     async findConnectionsByID(id: string): Promise<Connection | null> {
         const { data, error } = await supabase
@@ -92,7 +133,6 @@ export class ConnectionRepository implements IConnectionRepository {
     async findConnectionIdsForEntity(entityId: string, type?: string): Promise<string[]> {
         
         try {
-            // Get ALL connections first to debug
             const { data: allConnections, error: allError } = await supabase
                 .from('connections')
                 .select('*');

@@ -6,21 +6,30 @@ import { v4 as uuidv4 } from 'uuid';
 export class ConnectionUseCase {
     constructor(private connectionRepository: IConnectionRepository) {}
 
-    async createConnection(dto: CreateConnectionRequestDTO): Promise<Connection> {
-        // Check if connection already exists
+    async createConnection(dto: Connection): Promise<Connection> {
+
         const exists = await this.connectionRepository.connectionExists(dto.fromId, dto.toId);
         if (exists) {
             throw new Error('Connection already exists between these entities');
         }
 
-        const connection: Connection = {
-            id: uuidv4(),
-            fromId: dto.fromId,
-            fromType: dto.fromType,
-            toId: dto.toId,
-            toType: dto.toType,
-            createdAt: new Date()
-        };
+        const connection = new Connection(
+            uuidv4(),
+            dto.fromId,
+            dto.fromType,
+            dto.toId,
+            dto.toType,
+            dto.type || 'association',
+            dto.label,
+            dto.description,
+            dto.style,
+            dto.bidirectional || false,
+            dto.strength || 3,
+            dto.metadata,
+            dto.created || Date.now(),
+            dto.updated || Date.now(),
+            new Date()
+        );
 
         return await this.connectionRepository.createConnection(connection);
     }
@@ -46,13 +55,23 @@ export class ConnectionUseCase {
             throw new Error('Connection not found');
         }
 
-        const updatedConnection: Connection = {
-            ...existingConnection,
-            ...(dto.fromId && { fromId: dto.fromId }),
-            ...(dto.fromType && { fromType: dto.fromType }),
-            ...(dto.toId && { toId: dto.toId }),
-            ...(dto.toType && { toType: dto.toType })
-        };
+        const updatedConnection = new Connection(
+            existingConnection.id,
+            dto.fromId || existingConnection.fromId,
+            dto.fromType || existingConnection.fromType,
+            dto.toId || existingConnection.toId,
+            dto.toType || existingConnection.toType,
+            existingConnection.type,
+            existingConnection.label,
+            existingConnection.description,
+            existingConnection.style,
+            existingConnection.bidirectional,
+            existingConnection.strength,
+            existingConnection.metadata,
+            existingConnection.created,
+            Date.now(), // updated timestamp
+            existingConnection.createdAt
+        );
 
         return await this.connectionRepository.updateConnection(updatedConnection);
     }
