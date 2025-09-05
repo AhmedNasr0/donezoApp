@@ -58,46 +58,48 @@ export class WhiteboardRepository implements IWhiteboardRepository {
     }
 
     async saveWhiteboardWithConnections(whiteboardId: string, items: WhiteboardItem[]): Promise<Whiteboard> {
-        // delete old connections
-        await supabase.from('connections').delete().eq('whiteboard_id', whiteboardId);
 
-
-        const allRelatedConnections = items.flatMap(item => item.connections);
+        const allRelatedConnections:any[] = items.flatMap(item => item.connections);
 
         // remove dublicated Id
         const uniqueConnections: any[] = Array.from(
-        new Map(allRelatedConnections.map(conn => [conn.id, conn])).values()
-        );
+            new Map(allRelatedConnections.map(conn => [conn.id, conn])).values()
+            ).map(rawConn => ({
+            id: rawConn.id,
+            whiteboard_id: whiteboardId,
+            from_id: rawConn.fromId ?? rawConn.from,
+            to_id: rawConn.toId ?? rawConn.to,
+            from_type: rawConn.fromType ?? items.find(i => i.id === rawConn.from)?.type,
+            to_type: rawConn.toType ?? items.find(i => i.id === rawConn.to)?.type,
+            connection_type: rawConn.type ?? rawConn.connectionType ?? 'association',
+            label: rawConn.label ?? null,
+            description: rawConn.description ?? null,
+            style: rawConn.style ?? null,
+            bidirectional: rawConn.bidirectional ?? false,
+            strength: rawConn.strength ?? 3,
+            metadata: rawConn.metadata ?? null,
+            created_timestamp: Date.now(),
+            updated_timestamp: Date.now()
+            }));
 
-
-
-        // insert new connections
             if (uniqueConnections.length > 0) {
-                for (const rawConn of uniqueConnections) {
-                if (rawConn) {
-                    const conn = {
-                    id: rawConn.id,
-                    fromId: rawConn.fromId ?? rawConn.from,     
-                    toId: rawConn.toId ?? rawConn.to,
-                    fromType: rawConn.fromType ?? (items.find(i => i.id === rawConn.from)?.type),
-                    toType: rawConn.toType ?? (items.find(i => i.id === rawConn.to)?.type),
-                    type: rawConn.type ?? rawConn.connectionType ?? 'association',
-                    label: rawConn.label ?? null,
-                    description: rawConn.description ?? null,
-                    style: rawConn.style ?? null,
-                    bidirectional: rawConn.bidirectional ?? false,
-                    strength: rawConn.strength ?? 3,
-                    metadata: rawConn.metadata ?? null,
-                    };
-            
-                    await this.connectionRepository.createConnection(conn as any);
-                }
+                try {
+                    const { error: connectionsError } = await supabase
+                        .from('connections')
+                        .upsert(uniqueConnections, { 
+                            onConflict: 'id',
+                        });
+    
+                    if (connectionsError) {
+                        console.warn('Warning: Some connections could not be saved:', connectionsError);
+                    }
+                } catch (error) {
+                    console.error('Error saving connections:', error);
                 }
             }
-  
-
-        const whiteboard = await this.getById(whiteboardId);
-        return whiteboard!;
+        
+            const whiteboard = await this.getById(whiteboardId);
+            return whiteboard!;
     }
 
     async getWhiteboardWithConnections(whiteboardId: string): Promise<{ whiteboard: Whiteboard; connections: Connection[] } | null> {

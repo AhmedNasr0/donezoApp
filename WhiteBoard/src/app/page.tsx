@@ -42,6 +42,12 @@ export default function WhiteboardPage() {
   const [lastSaved, setLastSaved] = React.useState<Date | null>(null);
   const [whiteboardId, setWhiteboardId] = React.useState<string | null>(null);
 
+
+   // Race condition prevention refs
+   const isSavingRef = React.useRef(false);
+   const lastItemsHash = React.useRef('');
+   const pendingOperations = React.useRef(new Set<string>());
+
   
   // Enhanced functionality hooks
   const selection = useSelection();
@@ -121,6 +127,8 @@ React.useEffect(() => {
         const maxZ = processedItems.reduce((max: number, item: WindowItem) => 
           Math.max(max, item.zIndex || 1), 0);
         setActiveZIndex(maxZ);
+
+        lastItemsHash.current = JSON.stringify(processedItems);
         
         toast({
           description: `Loaded ${processedItems.length} items and ${allConnections.length} connections from previous session`,
@@ -142,41 +150,60 @@ React.useEffect(() => {
 }, []);
 
 
-  const triggerAutoSave = React.useCallback(async () => {
+  
+  const triggerAutoSave = React.useCallback(() => {
     if (autoSaveTimer.current) {
       clearTimeout(autoSaveTimer.current);
     }
-    
+
     autoSaveTimer.current = setTimeout(async () => {
+      if (isSavingRef.current) return;
+      
       try {
-        const hasChanges = lastSaved === null || 
-          (new Date().getTime() - lastSaved.getTime()) > 10000; 
-        
-        if (hasChanges) {
-          if (whiteboardId) {
+        const newHash = JSON.stringify(items);
+        const hasChanges =
+          lastSaved === null ||
+          newHash !== lastItemsHash.current ||
+          (new Date().getTime() - lastSaved.getTime()) > 10000;
+
+        if (hasChanges && whiteboardId && items.length > 0) {
+          isSavingRef.current = true;
           await saveWhiteboardState(items, whiteboardId);
+          lastItemsHash.current = newHash;
           setLastSaved(new Date());
-          }
-          else{
-            console.log("No whiteboard id found")
-          }
         }
       } catch (error) {
-        console.error('Auto-save failed:', error);
+        console.error("Auto-save failed:", error);
+        toast({
+          variant: 'destructive',
+          title: 'Auto-save failed',
+          description: 'Could not save changes automatically.',
+        });
+      } finally {
+        isSavingRef.current = false;
       }
-    }, 3000); 
-  }, [items, whiteboardId, lastSaved]);
+    }, 3000);
+  }, [items, whiteboardId, lastSaved, toast]);
 
   // Trigger auto-save when items change
   React.useEffect(() => {
-    if (!isLoading && (items.length > 0 || connections.connections.length > 0)) {
+    if (!isLoading && items.length > 0) {
       triggerAutoSave();
     }
-  }, [items, connections.connections, triggerAutoSave, isLoading]);
+  }, [items, triggerAutoSave, isLoading]);
 
   const handleManualSave = async () => {
+    if (isSavingRef.current) {
+      toast({
+        description: "Save already in progress...",
+      });
+      return;
+    }
+
     try {
+      isSavingRef.current = true;
       await saveWhiteboardState(items, whiteboardId || undefined);
+      lastItemsHash.current = JSON.stringify(items);
       setLastSaved(new Date());
       toast({
         description: "Whiteboard saved successfully!",
@@ -188,60 +215,68 @@ React.useEffect(() => {
         title: 'Save failed',
         description: 'Could not save whiteboard. Please try again.',
       });
+    } finally {
+      isSavingRef.current = false;
     }
   };
 
   const handleAddItem = async (type: WindowType, content?: string | string[]) => {
     let newZIndex = activeZIndex;
     
-    const createItem =async (itemContent: string): Promise<WindowItem> => {
-        newZIndex++;
-        
-        // Calculate position in world coordinates (center of current view)
-        const viewportCenterX = (window.innerWidth / 2 - panOffset.x) / scale;
-        const viewportCenterY = (window.innerHeight / 2 - panOffset.y) / scale;
-        
-        // Grid layout around the center
-        const gridColumns = Math.floor(window.innerWidth / (WINDOW_WIDTH + GRID_GUTTER));
-        const currentColumn = Math.floor((lastGridPosition.current.x - viewportCenterX + (WINDOW_WIDTH / 2)) / (WINDOW_WIDTH + GRID_GUTTER));
-        
-        if (currentColumn >= gridColumns) {
-            lastGridPosition.current.x = viewportCenterX - (gridColumns * (WINDOW_WIDTH + GRID_GUTTER)) / 2;
-            lastGridPosition.current.y += 360 + GRID_GUTTER;
-        }
+    const createItem = async (itemContent: string): Promise<WindowItem> => {
+      newZIndex++;
+      
+      // Calculate position in world coordinates (center of current view)
+      const viewportCenterX = (window.innerWidth / 2 - panOffset.x) / scale;
+      const viewportCenterY = (window.innerHeight / 2 - panOffset.y) / scale;
+      
+      // Grid layout around the center
+      const gridColumns = Math.floor(window.innerWidth / (WINDOW_WIDTH + GRID_GUTTER));
+      const currentColumn = Math.floor((lastGridPosition.current.x - viewportCenterX + (WINDOW_WIDTH / 2)) / (WINDOW_WIDTH + GRID_GUTTER));
+      
+      if (currentColumn >= gridColumns) {
+          lastGridPosition.current.x = viewportCenterX - (gridColumns * (WINDOW_WIDTH + GRID_GUTTER)) / 2;
+          lastGridPosition.current.y += 360 + GRID_GUTTER;
+      }
 
-        const position = {
-            x: lastGridPosition.current.x,
-            y: lastGridPosition.current.y,
-        };
+      const position = {
+          x: lastGridPosition.current.x,
+          y: lastGridPosition.current.y,
+      };
 
-        const newItem: WindowItem = {
-          id: crypto.randomUUID(),
-          type,
-          title: `New ${type.charAt(0).toUpperCase() + type.slice(1)}`,
-          content: itemContent || '',
-          position: position,
-          size: { width: WINDOW_WIDTH, height: 360 },
-          isAttached: false,
-          zIndex: newZIndex,
-          connections: [],
-        };
-        
-        lastGridPosition.current.x += WINDOW_WIDTH + GRID_GUTTER;
+      const newItem: WindowItem = {
+        id: crypto.randomUUID(),
+        type,
+        title: `New ${type.charAt(0).toUpperCase() + type.slice(1)}`,
+        content: itemContent || '',
+        position: position,
+        size: { width: WINDOW_WIDTH, height: 360 },
+        isAttached: false,
+        zIndex: newZIndex,
+        connections: [],
+      };
+      
+      lastGridPosition.current.x += WINDOW_WIDTH + GRID_GUTTER;
 
+      const operationId = `add-${newItem.id}`;
+      if (pendingOperations.current.has(operationId)) {
+        throw new Error('Item creation already in progress');
+      }
+      
+      pendingOperations.current.add(operationId);
+
+      try {
         if (type === 'ai') {
-            const newChat=await createChat(
-              newItem.title
-            )
-            newItem.id = newChat.data?.id.toString()
-            newItem.title = "AI Assistant"
+            const newChat = await createChat(newItem.title);
+            newItem.id = newChat.data?.id.toString();
+            newItem.title = "AI Assistant";
             newItem.size = { width: 400, height: 550 };
         } else if (type === 'doc') {
             newItem.content = '';
-            newItem.title = 'Document Upload'
+            newItem.title = 'Document Upload';
         } else if (type === 'image') {
             newItem.content = '';
-            newItem.title = 'Image Upload'
+            newItem.title = 'Image Upload';
         } else if (type === 'youtube') {
           if (itemContent) {
               // const savedVideo=await uploadVideoLink(
@@ -261,22 +296,14 @@ React.useEffect(() => {
               newItem.content = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
           }
         } else if (type === 'tiktok') {
-            if (itemContent.includes('/video/')) {
-              // const savedVideo=await uploadVideoLink(
-              //   newItem.content,'tiktok'
-              // )
-              // newItem.id = savedVideo.data?.videoId.toString()
+            if (itemContent?.includes('/video/')) {
               newItem.title = 'New Reel';
               newItem.size = { width: 325, height: 580 };
             } else {
               newItem.title = 'Tiktok Profile';
             }
         } else if (type === 'instagram') {
-          if (itemContent.includes('/reel/')) {
-            // const savedVideo=await uploadVideoLink(
-            //   newItem.content,'instagram'
-            // )
-            // newItem.id = savedVideo.data?.videoId.toString()
+          if (itemContent?.includes('/reel/')) {
             newItem.title = 'New Reel';
             newItem.size = { width: 325, height: 580 };
           } else {
@@ -288,25 +315,20 @@ React.useEffect(() => {
             newItem.content = 'https://placehold.co/600x400.png';
         }
 
-        try {
-          const savedItem = await createWhiteboardItem(newItem);
-          if(savedItem.sucess){
-            newItem.id = savedItem.data.id
-          }
-          if (newItem.id) {
-          }
-          return savedItem.data || newItem;
-        } catch (error) {
-            console.error('Error saving item to database:', error);
-            return newItem;
+        const savedItem = await createWhiteboardItem(newItem);
+        if (savedItem.sucess) {
+          newItem.id = savedItem.data.id;
         }
-    }
+        return savedItem.data || newItem;
+      } finally {
+        pendingOperations.current.delete(operationId);
+      }
+    };
     
     const itemContents = Array.isArray(content) ? content : [content || ''];
-    const itemPromises = itemContents.map(c => createItem(c));
-
+    
     try {
-        const newItems = await Promise.all(itemPromises);
+        const newItems = await Promise.all(itemContents.map(c => createItem(c)));
         
         setItems((prev) => [...prev, ...newItems]);
         setActiveZIndex(newZIndex);
@@ -322,90 +344,116 @@ React.useEffect(() => {
         toast({
             variant: 'destructive',
             title: 'Failed to add item',
-            description: 'Could not add the item to the database. Please try again.',
+            description: 'Could not add the item. Please try again.',
         });
     }
   };
   const debouncedUpdateTimer = React.useRef<NodeJS.Timeout>();
 
   const handleUpdateItem = async (updatedItem: WindowItem, immediate = false) => {
-      setItems((prev) =>
-        prev.map((item) => (item.id === updatedItem.id ? updatedItem : item))
-      );
-      
-      if (!history.isUndoRedoing) {
-        const oldItem = items.find(item => item.id === updatedItem.id);
-        if (oldItem) {
-          history.addToHistory({
-            type: 'update',
-            items: [oldItem],
-          });
-        }
+    setItems((prev) =>
+      prev.map((item) => (item.id === updatedItem.id ? updatedItem : item))
+    );
+    
+    if (!history.isUndoRedoing) {
+      const oldItem = items.find(item => item.id === updatedItem.id);
+      if (oldItem) {
+        history.addToHistory({
+          type: 'update',
+          items: [oldItem],
+        });
       }
+    }
+    
+    const operationId = `update-${updatedItem.id}`;
+    
+    if (debouncedUpdateTimer.current) {
+      clearTimeout(debouncedUpdateTimer.current);
+    }
+    
+    const performUpdate = async () => {
+      if (pendingOperations.current.has(operationId)) return;
       
-      if (debouncedUpdateTimer.current) {
-        clearTimeout(debouncedUpdateTimer.current);
-      }
-      
-      if (immediate) {
-        try {
-          await updateWhiteboardItem(updatedItem);
-        } catch (error) {
-          console.error('Error saving item to database:', error);
-        }
-      } else {
-        debouncedUpdateTimer.current = setTimeout(async () => {
-          try {
-            await updateWhiteboardItem(updatedItem);
-          } catch (error) {
-            console.error('Error saving item to database:', error);
-          }
-        }, 500); 
-      }
-    };
-
-    const handleItemMove = (updatedItem: WindowItem) => {
-      setItems((prev) =>
-        prev.map((item) => (item.id === updatedItem.id ? updatedItem : item))
-      );
-    };
-
-    const handleItemMoveEnd = async (updatedItem: WindowItem) => {
+      pendingOperations.current.add(operationId);
       try {
         await updateWhiteboardItem(updatedItem);
       } catch (error) {
-        console.error('Error saving item position:', error);
+        console.error('Error saving item to database:', error);
+        toast({
+          variant: 'destructive',
+          title: 'Update failed',
+          description: 'Could not save item changes.',
+        });
+      } finally {
+        pendingOperations.current.delete(operationId);
       }
     };
-
     
+    if (immediate) {
+      await performUpdate();
+    } else {
+      debouncedUpdateTimer.current = setTimeout(performUpdate, 500);
+    }
+  };
+
+  const handleItemMove = (updatedItem: WindowItem) => {
+    setItems((prev) =>
+      prev.map((item) => (item.id === updatedItem.id ? updatedItem : item))
+    );
+  };
+
+  const handleItemMoveEnd = async (updatedItem: WindowItem) => {
+    const operationId = `move-${updatedItem.id}`;
+    if (pendingOperations.current.has(operationId)) return;
+    
+    pendingOperations.current.add(operationId);
+    try {
+      await updateWhiteboardItem(updatedItem);
+    } catch (error) {
+      console.error('Error saving item position:', error);
+    } finally {
+      pendingOperations.current.delete(operationId);
+    }
+  };
 
   const handleDeleteItem = async (id: string) => {
+    const operationId = `delete-${id}`;
+    if (pendingOperations.current.has(operationId)) return;
+    
+    pendingOperations.current.add(operationId);
+    
     try {
+      const itemToDelete = items.find(item => item.id === id);
+      if (itemToDelete && !history.isUndoRedoing) {
+        history.addToHistory({
+          type: 'delete',
+          items: [itemToDelete],
+        });
+      }
+      
+      setItems((prev) => prev.filter((item) => item.id !== id));
+      selection.selectItems([]);
+      
       await deleteWhiteboardItem(id);
       
       // Also delete all connections for this item
-      const itemConnections = getItemConnections(id,connections.connections);
+      const itemConnections = getItemConnections(id, connections.connections);
       for (const conn of itemConnections) {
         await deleteConnection(conn.id);
         connections.deleteConnection(conn.id);
       }
       
     } catch (error) {
-        console.error('Error deleting item from database:', error);
-    }
-    const itemToDelete = items.find(item => item.id === id);
-    if (itemToDelete && !history.isUndoRedoing) {
-      history.addToHistory({
-        type: 'delete',
-        items: [itemToDelete],
+      console.error('Error deleting item from database:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Delete failed',
+        description: 'Could not delete item. Please refresh and try again.',
       });
+    } finally {
+      pendingOperations.current.delete(operationId);
     }
-    
-    setItems((prev) => prev.filter((item) => item.id !== id));
-    selection.selectItems([]); // Clear selection when deleting
-
-  }
+  };
 
   const handleFocusItem = (id: string) => {
     const item = items.find(i => i.id === id);
@@ -435,90 +483,82 @@ React.useEffect(() => {
           ...connections.getConnectionsBetween(linking.from, id),
           ...connections.getConnectionsBetween(id, linking.from)
         ];
-                if (existingConnections.length > 0) {
-          const existingConnection = existingConnections[0];
-          
-          connections.deleteConnection(existingConnection.id);
-          
-          const updatedFromItem = {
-            ...fromItem,
-            connections: fromItem.connections.filter(c => c.id !== existingConnection.id)
-          };
-          
-          setItems(prev => prev.map(item => {
-            if (item.id === fromItem.id || item.id === toItem.id) {
-              return {
-                ...item,
-                connections: item.connections.filter(c => c.id !== existingConnection.id)
-              };
-            }
-            return item;
-          }));
-          
-          if (!history.isUndoRedoing) {
-            history.addToHistory({
-              type: 'disconnect',
-              items: [fromItem],
-              connections: [existingConnection],
-            });
-          }
-          
-          try {
-            await deleteConnection(existingConnection.id);
-            toast({ description: "Connection removed successfully." });
-          } catch (error) {
-            connections.addConnection(linking.from, id, 'association', existingConnection.id);
-            setItems(prev => prev.map(item => 
-              item.id === fromItem.id ? fromItem : item
-            ));
-            
-            toast({
-              variant: "destructive",
-              title: "Failed to remove connection",
-              description: `Could not remove connection. Please try again.`,
-            });
-          }
-        }
-          else {
-            try {
-              const newConnectionFromBackend = await createConnection(
-                fromItem.id,
-                fromItem.type,
-                toItem.id,
-                toItem.type
-              );
-              
-              if (newConnectionFromBackend?.success) {
-                const realConnection = connections.addConnection(
-                  linking.from, 
-                  id, 
-                  'association', 
-                  newConnectionFromBackend.data.id
-                );
-                
-                if (realConnection) {
-                  await handleUpdateItem({
-                    ...fromItem,
-                    connections: [...fromItem.connections, realConnection]
-                  }, true); 
-                  
-                  toast({ description: "Items connected successfully" });
-                }
-              }
-            } catch (error) {
-              toast({
-                variant: "destructive",
-                title: "Failed to create connection",
-                description: "Could not create connection. Please try again.",
-              });
-              console.log("failed to create connection",error)
-            }
-          }
+        
+        const operationId = `connection-${linking.from}-${id}`;
+        if (pendingOperations.current.has(operationId)) {
+          setLinking(null);
+          return;
         }
         
-        setLinking(null);
+        pendingOperations.current.add(operationId);
+        
+        try {
+          if (existingConnections.length > 0) {
+            const existingConnection = existingConnections[0];
+            
+            connections.deleteConnection(existingConnection.id);
+            
+            setItems(prev => prev.map(item => {
+              if (item.id === fromItem.id || item.id === toItem.id) {
+                return {
+                  ...item,
+                  connections: item.connections.filter(c => c.id !== existingConnection.id)
+                };
+              }
+              return item;
+            }));
+            
+            if (!history.isUndoRedoing) {
+              history.addToHistory({
+                type: 'disconnect',
+                items: [fromItem],
+                connections: [existingConnection],
+              });
+            }
+            
+            await deleteConnection(existingConnection.id);
+            toast({ description: "Connection removed successfully." });
+          } else {
+            const newConnectionFromBackend = await createConnection(
+              fromItem.id,
+              fromItem.type,
+              toItem.id,
+              toItem.type
+            );
+            
+            if (newConnectionFromBackend?.success) {
+              const realConnection = connections.addConnection(
+                linking.from, 
+                id, 
+                'association', 
+                newConnectionFromBackend.data.id
+              );
+              
+              if (realConnection) {
+                await handleUpdateItem({
+                  ...fromItem,
+                  connections: [...fromItem.connections, realConnection]
+                }, true); 
+                
+                toast({ description: "Items connected successfully" });
+              }
+            }
+          }
+        } catch (error) {
+          toast({
+            variant: "destructive",
+            title: "Connection operation failed",
+            description: "Could not process connection. Please try again.",
+          });
+          console.log("failed to process connection", error);
+        } finally {
+          pendingOperations.current.delete(operationId);
+        }
       }
-    };
+      
+      setLinking(null);
+    }
+  };
   
 
   const handleZoom = (direction: 'in' | 'out' | 'reset') => {
@@ -597,6 +637,7 @@ React.useEffect(() => {
     });
   }, [items, selection, activeZIndex, history, toast]);
 
+  
   const copySelectedItems = React.useCallback(() => {
     const selectedItems = selection.getSelectedItems(items);
     if (selectedItems.length === 0) return;
