@@ -45,6 +45,10 @@ export function WhiteboardCanvas({
   const [lastMousePos, setLastMousePos] = React.useState({ x: 0, y: 0 });
   const canvasRef = React.useRef<HTMLDivElement>(null);
   
+  // Performance optimization refs for panning
+  const panAnimationFrameRef = React.useRef<number>();
+  const lastPanUpdateTime = React.useRef<number>(0);
+  
   // Infinite canvas dimensions
   const CANVAS_SIZE = 50000; // Large but finite for performance
   const GRID_SIZE = 50;
@@ -61,10 +65,10 @@ export function WhiteboardCanvas({
       const mouseX = e.clientX - rect.left;
       const mouseY = e.clientY - rect.top;
       
-      // Calculate zoom direction and amount
+      // Calculate zoom direction and amount with smoother scaling
       const zoomDirection = e.deltaY > 0 ? -1 : 1;
-      const zoomFactor = 1 + (zoomDirection * 0.1);
-      const newScale = Math.max(0.1, Math.min(3, scale * zoomFactor));
+      const zoomFactor = 1 + (zoomDirection * 0.07); // Reduced from 0.1 to 0.05 for smoother zoom
+      const newScale = Math.max(0.1, Math.min(5, scale * zoomFactor)); // Increased max zoom from 3 to 5
       
       if (newScale !== scale) {
         // Calculate new pan offset to zoom towards mouse cursor
@@ -90,15 +94,34 @@ export function WhiteboardCanvas({
   React.useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (isPanning) {
-        const deltaX = e.clientX - lastMousePos.x;
-        const deltaY = e.clientY - lastMousePos.y;
+        // Cancel previous animation frame if it exists
+        if (panAnimationFrameRef.current) {
+          cancelAnimationFrame(panAnimationFrameRef.current);
+        }
         
-        onPanChange({
-          x: panOffset.x + deltaX,
-          y: panOffset.y + deltaY,
+        // Use requestAnimationFrame for smooth panning
+        panAnimationFrameRef.current = requestAnimationFrame(() => {
+          const now = performance.now();
+          // Throttle updates to 60fps max
+          if (now - lastPanUpdateTime.current >= 16) {
+            const deltaX = e.clientX - lastMousePos.x;
+            const deltaY = e.clientY - lastMousePos.y;
+            
+            // Adjust panning speed based on scale for consistent feel
+            // Use a more sophisticated scaling that feels natural at all zoom levels
+            const panSpeedMultiplier = Math.max(0.3, Math.min(1.2, 1 / scale));
+            const scaleAdjustedDeltaX = deltaX * panSpeedMultiplier;
+            const scaleAdjustedDeltaY = deltaY * panSpeedMultiplier;
+            
+            onPanChange({
+              x: panOffset.x + scaleAdjustedDeltaX,
+              y: panOffset.y + scaleAdjustedDeltaY,
+            });
+            
+            setLastMousePos({ x: e.clientX, y: e.clientY });
+            lastPanUpdateTime.current = now;
+          }
         });
-        
-        setLastMousePos({ x: e.clientX, y: e.clientY });
       }
       
       if (selection.isBoxSelecting) {
@@ -118,6 +141,13 @@ export function WhiteboardCanvas({
       if (selection.isBoxSelecting) {
         selection.endBoxSelection(items, scale, panOffset);
       }
+      
+      // Cancel any pending panning animation frame
+      if (panAnimationFrameRef.current) {
+        cancelAnimationFrame(panAnimationFrameRef.current);
+        panAnimationFrameRef.current = undefined;
+      }
+      
       setIsPanning(false);
     };
 
@@ -129,6 +159,12 @@ export function WhiteboardCanvas({
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
+      
+      // Cancel any pending animation frames
+      if (panAnimationFrameRef.current) {
+        cancelAnimationFrame(panAnimationFrameRef.current);
+        panAnimationFrameRef.current = undefined;
+      }
     };
   }, [isPanning, linking, selection, scale, panOffset, lastMousePos, items, onPanChange]);
 
@@ -251,7 +287,7 @@ export function WhiteboardCanvas({
   return (
     <main 
       ref={canvasRef} 
-      className="h-full w-full overflow-hidden cursor-grab active:cursor-grabbing" 
+      className="h-full w-full overflow-visible cursor-grab active:cursor-grabbing" 
       onMouseDown={handleMouseDown}
       style={{ 
         cursor: isPanning ? 'grabbing' : 
@@ -270,9 +306,11 @@ export function WhiteboardCanvas({
           height: CANVAS_SIZE,
           transform: `scale(${scale}) translate(${panOffset.x / scale}px, ${panOffset.y / scale}px)`,
           transformOrigin: '0 0',
+          overflow: 'visible',
+          willChange: isPanning ? 'transform' : 'auto',
         }}
       >
-        <svg className="absolute inset-0 pointer-events-none" style={{ width: '100%', height: '100%' }}>
+        <svg className="absolute pointer-events-none" style={{ width: '100%', height: '100%', overflow: 'visible' }}>
           {/* Enhanced connections */}
           {connections.map((connection) => {
             const fromItem = items.find(item => item.id === connection.from);
@@ -306,6 +344,7 @@ export function WhiteboardCanvas({
             isLinking={!!linking}
             isLinkingFrom={linking?.from === item.id}
             isSelected={selection.isSelected(item.id)}
+            scale={scale}
             onUpdate={onUpdateItem}
             onDelete={onDeleteItem}
             onFocus={onFocusItem}

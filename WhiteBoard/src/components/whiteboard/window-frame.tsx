@@ -21,6 +21,7 @@ interface WindowFrameProps {
   isLinking: boolean;
   isLinkingFrom: boolean;
   isSelected: boolean;
+  scale: number;
   onUpdate: (item: WindowItem) => void;
   onDelete: (id: string) => void;
   onFocus: (id: string) => void;
@@ -28,12 +29,18 @@ interface WindowFrameProps {
   onSelect: (id: string, multiSelect: boolean) => void;
 }
 
-export function WindowFrame({ item, items, isLinking, isLinkingFrom, isSelected, onUpdate, onDelete, onFocus, onToggleConnection, onSelect }: WindowFrameProps) {
+export function WindowFrame({ item, items, isLinking, isLinkingFrom, isSelected, scale, onUpdate, onDelete, onFocus, onToggleConnection, onSelect }: WindowFrameProps) {
   const [isDragging, setIsDragging] = React.useState(false);
   const [dragStart, setDragStart] = React.useState({ x: 0, y: 0 });
   const [isResizing, setIsResizing] = React.useState(false);
   const [resizeStart, setResizeStart] = React.useState({ x: 0, y: 0, width: 0, height: 0 });
   const [status , setStatus] = React.useState<string>('');
+  
+  // Performance optimization refs
+  const animationFrameRef = React.useRef<number>();
+  const lastUpdateTime = React.useRef<number>(0);
+  const elementRef = React.useRef<HTMLDivElement>(null);
+  const isDraggingRef = React.useRef(false);
 
   React.useEffect(() => {
     const needsProcessing = ['youtube', 'tiktok', 'instagram'].includes(item.type)
@@ -84,9 +91,14 @@ export function WindowFrame({ item, items, isLinking, isLinkingFrom, isSelected,
     e.stopPropagation();
     
     setIsDragging(true);
+    isDraggingRef.current = true;
+    
     // The main position state is in the parent, so we calculate the offset
-    // from the mouse position to the item's top-left corner.
-    setDragStart({ x: e.clientX - item.position.x, y: e.clientY - item.position.y });
+    // from the mouse position to the item's top-left corner, accounting for scale
+    setDragStart({ 
+      x: e.clientX - (item.position.x * scale), 
+      y: e.clientY - (item.position.y * scale) 
+    });
     onFocus(item.id);
 
     // Disable text selection and change cursor while dragging
@@ -97,17 +109,48 @@ export function WindowFrame({ item, items, isLinking, isLinkingFrom, isSelected,
   const handleDrag = React.useCallback(
     (e: MouseEvent) => {
       // This check is important to only run the logic when dragging is active
-      if (!isDragging) return;
-      onUpdate({
-        ...item,
-        position: { x: e.clientX - dragStart.x, y: e.clientY - dragStart.y },
+      if (!isDraggingRef.current || !elementRef.current) return;
+      
+      // Calculate new position accounting for scale
+      const newX = (e.clientX - dragStart.x) / scale;
+      const newY = (e.clientY - dragStart.y) / scale;
+      
+      // Direct DOM update for real-time movement using transform (GPU accelerated)
+      elementRef.current.style.transform = `translate(${(newX - item.position.x) * scale}px, ${(newY - item.position.y) * scale}px)`;
+      
+      // Update React state less frequently for persistence
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      
+      animationFrameRef.current = requestAnimationFrame(() => {
+        // Reset transform and update position
+        if (elementRef.current) {
+          elementRef.current.style.transform = '';
+        }
+        onUpdate({
+          ...item,
+          position: { x: newX, y: newY },
+        });
       });
     },
-    [isDragging, dragStart, item, onUpdate]
+    [dragStart, item, onUpdate, scale]
   );
 
   const handleDragEnd = React.useCallback(() => {
     setIsDragging(false);
+    isDraggingRef.current = false;
+    
+    // Cancel any pending animation frame
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = undefined;
+    }
+    
+    // Reset transform
+    if (elementRef.current) {
+      elementRef.current.style.transform = '';
+    }
 
     // Re-enable text selection and reset cursor when dragging stops
     document.body.style.userSelect = '';
@@ -121,7 +164,12 @@ export function WindowFrame({ item, items, isLinking, isLinkingFrom, isSelected,
     if (item.isLocked) return;
     
     setIsResizing(true);
-    setResizeStart({ x: e.clientX, y: e.clientY, width: item.size.width, height: item.size.height });
+    setResizeStart({ 
+      x: e.clientX, 
+      y: e.clientY, 
+      width: item.size.width * scale, 
+      height: item.size.height * scale 
+    });
     onFocus(item.id);
 
     document.body.style.userSelect = 'none';
@@ -130,19 +178,40 @@ export function WindowFrame({ item, items, isLinking, isLinkingFrom, isSelected,
 
   const handleResize = React.useCallback(
     (e: MouseEvent) => {
-      if (!isResizing) return;
-      const newWidth = resizeStart.width + (e.clientX - resizeStart.x);
-      const newHeight = resizeStart.height + (e.clientY - resizeStart.y);
-      onUpdate({
-        ...item,
-        size: { width: Math.max(newWidth, 300), height: Math.max(newHeight, 200) },
+      if (!isResizing || !elementRef.current) return;
+      
+      // Calculate new size accounting for scale
+      const newWidth = Math.max((resizeStart.width + (e.clientX - resizeStart.x)) / scale, 300);
+      const newHeight = Math.max((resizeStart.height + (e.clientY - resizeStart.y)) / scale, 200);
+      
+      // Direct DOM update for real-time resizing
+      elementRef.current.style.width = `${newWidth * scale}px`;
+      elementRef.current.style.height = `${newHeight * scale}px`;
+      
+      // Update React state less frequently for persistence
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      
+      animationFrameRef.current = requestAnimationFrame(() => {
+        onUpdate({
+          ...item,
+          size: { width: newWidth, height: newHeight },
+        });
       });
     },
-    [isResizing, resizeStart, item, onUpdate]
+    [isResizing, resizeStart, item, onUpdate, scale]
   );
 
   const handleResizeEnd = React.useCallback(() => {
     setIsResizing(false);
+    
+    // Cancel any pending animation frame
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = undefined;
+    }
+    
     document.body.style.userSelect = '';
     document.body.style.cursor = '';
   }, []);
@@ -158,6 +227,17 @@ export function WindowFrame({ item, items, isLinking, isLinkingFrom, isSelected,
     return () => {
       document.removeEventListener('mousemove', handleDrag);
       document.removeEventListener('mouseup', handleDragEnd);
+      
+      // Cancel any pending animation frames
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = undefined;
+      }
+      
+      // Reset transform
+      if (elementRef.current) {
+        elementRef.current.style.transform = '';
+      }
     };
   }, [isDragging, handleDrag, handleDragEnd]);
 
@@ -172,6 +252,17 @@ export function WindowFrame({ item, items, isLinking, isLinkingFrom, isSelected,
     return () => {
       document.removeEventListener('mousemove', handleResize);
       document.removeEventListener('mouseup', handleResizeEnd);
+      
+      // Cancel any pending animation frames
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = undefined;
+      }
+      
+      // Reset transform
+      if (elementRef.current) {
+        elementRef.current.style.transform = '';
+      }
     };
   }, [isResizing, handleResize, handleResizeEnd]);
 
@@ -234,6 +325,7 @@ export function WindowFrame({ item, items, isLinking, isLinkingFrom, isSelected,
 
   return (
     <div
+      ref={elementRef}
       className="absolute window-frame"
       style={{
         left: item.position.x,
@@ -241,6 +333,7 @@ export function WindowFrame({ item, items, isLinking, isLinkingFrom, isSelected,
         width: item.size.width,
         height: item.size.height,
         zIndex: item.zIndex,
+        willChange: (isDragging || isResizing) ? 'transform' : 'auto',
       }}
       onMouseDown={(e) => {
         // Don't select window if clicking on connection handle

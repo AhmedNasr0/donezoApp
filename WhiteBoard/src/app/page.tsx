@@ -928,7 +928,7 @@ React.useEffect(() => {
         </div>
 
         {/* Main Canvas Area */}
-        <div className="pt-16 pb-16"> {/* Account for top and bottom bars */}
+        <div className="pt-16 pb-16 overflow-visible"> {/* Account for top and bottom bars */}
           <WhiteboardCanvas
             items={filteredItems}
             connections={connections.connections}
