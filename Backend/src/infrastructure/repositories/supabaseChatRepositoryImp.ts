@@ -33,7 +33,7 @@ export class ChatRepository implements IChatRepository {
                 chat_name: chat.chat_name,
                 chat_messages: chat.chat_messages,
                 numOfConnections: chat.numOfConnections,
-                whiteboard_id: chat.whiteboardId ||null,
+                whiteboard_id: chat.whiteboardId,
                 created_at: chat.createdAt
             }])
             .select()

@@ -86,7 +86,7 @@ export function Sidebar({ onAddItem }: SidebarProps) {
 
   return (
     <TooltipProvider>
-      <aside className="fixed top-1/2 left-4 z-50 -translate-y-1/2 rounded-full border bg-card/90 p-2 shadow-lg backdrop-blur-sm">
+      <aside data-sidebar className="fixed top-1/2 left-4 z-50 -translate-y-1/2 rounded-full border bg-card/90 p-2 shadow-lg backdrop-blur-sm">
         <div className="flex flex-col items-center gap-2">
             <Tooltip>
                 <TooltipTrigger asChild>

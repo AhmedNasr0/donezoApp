@@ -19,13 +19,37 @@ export class WhiteboardItemRepository implements IWhiteboardItemRepository {
         const items : WhiteboardItem[] = await Promise.all(
             (data || []).map(async (row: any) =>{
                 const itemConnections= await this.connectionRepo.findConnectionsForEntity(row.id);
+                
+                
+                let position = row.position;
+                let size = row.size;
+                
+                if (typeof position === 'string') {
+                    try {
+                        position = JSON.parse(position);
+                    } catch (e) {
+                        console.error('Error parsing position JSON:', e, 'Raw position:', position);
+                        position = { x: 0, y: 0 };
+                    }
+                }
+                
+                if (typeof size === 'string') {
+                    try {
+                        size = JSON.parse(size);
+                    } catch (e) {
+                        console.error('Error parsing size JSON:', e, 'Raw size:', size);
+                        size = { width: 480, height: 320 };
+                    }
+                }
+                
+                
                 return new WhiteboardItem(
                     row.id,
                     row.type,
                     row.title,
                     row.content,
-                    row.position, // JSON {x,y}
-                    row.size,     // JSON {width,height}
+                    position, // Parsed JSON {x,y}
+                    size,     // Parsed JSON {width,height}
                     row.z_index,
                     row.is_attached,
                     row.is_locked,
@@ -58,7 +82,12 @@ export class WhiteboardItemRepository implements IWhiteboardItemRepository {
             .select()
             .single();
 
-        if (error) throw error;
+        if (error) {
+            console.error("Repository: Error updating whiteboard item:", error);
+            throw error;
+        }
+        
+        
         const connections :any = []
         return new WhiteboardItem(
             data.id,
@@ -78,12 +107,17 @@ export class WhiteboardItemRepository implements IWhiteboardItemRepository {
     }
 
     async deleteItem(id: string): Promise<void> {
+        
         const { error } = await supabase
             .from("whiteboard_items")
             .delete()
             .eq("id", id);
 
-        if (error) throw error;
+        if (error) {
+            console.error("Repository: Error deleting whiteboard item:", error);
+            throw error;
+        }
+        
     }
 
     async createItem(item: WhiteboardItem): Promise<WhiteboardItem> {

@@ -35,7 +35,7 @@ export function TopBar({
   const { user, signOut } = useAuth();
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
+    <div data-topbar className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
       <div className="flex items-center justify-between px-4 py-2 gap-4">
         
         {/* Left Section - Project Info */}

@@ -70,16 +70,19 @@ export class ChatUseCase {
     }
 
     async deleteChat(id: string): Promise<void> {
+
         const chat = await this.chatRepository.getChatById(id);
         if (!chat) {
             throw new Error('Chat not found');
         }
 
+        
         // Delete all messages for this chat first
         await this.chatMessageRepository.deleteByChatId(id);
         
         // Then delete the chat
         await this.chatRepository.deleteChat(id);
+        
     }
 
     async sendMessage(chatId: string, question: string): Promise<ChatResponseDTO> {
@@ -104,12 +107,12 @@ export class ChatUseCase {
         const contexts: string[] = [];
 
         for (const connectionId of connectionIds) {
-            try {
+            try { 
                 const job = await this.videoStatusUseCase.execute(connectionId);
                 if (job.status === 'done' && job.transcription) {
                     contexts.push(job.transcription);
                 }
-            } catch (error) {
+            } catch (error) { 
                 console.error(`Error getting transcription for connection ${connectionId}:`, error);
             }
         }
@@ -119,7 +122,7 @@ export class ChatUseCase {
             const combinedContext = contexts.join("\n--\n");
             answer = await this.LLMOrchestratorService.generateResponse(question, combinedContext);
         } else {
-            answer = "no Answer"; // Keep this consistent with your existing logic
+            answer = "no Answer"; 
         }
 
         // Save AI response

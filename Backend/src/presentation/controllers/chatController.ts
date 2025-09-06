@@ -105,18 +105,28 @@ export class ChatController {
         try {
             const { id } = req.params;
             if(!id) return;
+            
             await this.chatUseCase.deleteChat(id);
 
             res.json({
                 success: true,
                 message: 'Chat deleted successfully'
             });
-        } catch (error) {
-            console.error('Error deleting chat:', error);
-            res.status(500).json({
-                success: false,
-                error: 'Failed to delete chat'
-            });
+        } catch (error: any) {
+            // If chat not found, return 404 instead of 500
+            if (error.message === 'Chat not found') {
+                // Don't log this as an error - it's normal for old/orphaned chats
+                res.status(404).json({
+                    success: false,
+                    error: 'Chat not found'
+                });
+            } else {
+                console.error('Error deleting chat:', error);
+                res.status(500).json({
+                    success: false,
+                    error: 'Failed to delete chat'
+                });
+            }
         }
     }
 
@@ -163,12 +173,21 @@ export class ChatController {
                 success: true,
                 data: history
             });
-        } catch (error) {
-            console.error('Error getting chat history:', error);
-            res.status(500).json({
-                success: false,
-                error: 'Failed to get chat history'
-            });
+        } catch (error: any) {
+            // If chat not found, return 404 instead of 500
+            if (error.message === 'Chat not found') {
+                // Don't log this as an error - it's normal for old/orphaned chats
+                res.status(404).json({
+                    success: false,
+                    error: 'Chat not found'
+                });
+            } else {
+                console.error('Error getting chat history:', error);
+                res.status(500).json({
+                    success: false,
+                    error: 'Failed to get chat history'
+                });
+            }
         }
     }
 

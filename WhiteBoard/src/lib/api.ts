@@ -12,16 +12,39 @@ const getBaseUrl = () => {
 
 export async function createChat(chatName: string) {
   const whiteboard = await getCurrentWhiteboardId()
+  const chat= {
+    chat_name: chatName,
+    whiteboardId: whiteboard.data.id
+  }
   const res = await fetch(`${getBaseUrl()}/api/v1/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ 
-      chat_name: chatName,
-      whiteboardId: whiteboard.id
-    }),
+    body: JSON.stringify(chat),
   });
   if (!res.ok) throw new Error('Failed to create chat');
   return res.json();
+}
+
+export async function deleteChat(chatId: string) {
+  
+  const response = await fetch(`${getBaseUrl()}/api/v1/chat/${chatId}`, {
+    method: 'DELETE',
+  });
+  
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    
+    // If chat not found (404), this is not a critical error
+    if (response.status === 404) {
+      throw new Error('Chat not found');
+    }
+    
+    console.error('Delete chat failed with status:', response.status, 'Error:', errorText);
+    throw new Error(`Failed to delete chat: ${response.status} ${errorText}`);
+  }
+  
+  return response.json();
 }
 
 export async function sendMessage(chatId: string, message: string) {
@@ -38,8 +61,16 @@ export async function getChatHistory(chatId: string) {
   const res = await fetch(`${getBaseUrl()}/api/v1/chat/${chatId}/history`, {
     method: 'GET',
     headers: { 'Content-Type': 'application/json' },
-  });
-  if (!res.ok) throw new Error('Failed to get chat history');
+  }); 
+  
+  if (!res.ok) {
+    if (res.status === 404 || res.status === 500) {
+      // Chat not found or deleted - this is normal for old/orphaned chats
+      throw new Error('Chat not found');
+    }
+    throw new Error('Failed to get chat history');
+  }
+  
   return res.json();
 }
 
@@ -290,19 +321,27 @@ export async function updateWhiteboardItem(item: WindowItem) {
     item,
     userEmail: currentUser.email,
   }
-  const response = await fetch(`${getBaseUrl()}/api/v1/whiteboard-item/${item.id}`, {
-      method: 'PUT',
-      headers: {
-          'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-  });
   
-  if (!response.ok) {
-      throw new Error('Failed to update item');
+  try {
+    const response = await fetch(`${getBaseUrl()}/api/v1/whiteboard-item/${item.id}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+    });
+    
+    if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API Error Response:', errorText);
+        throw new Error(`Failed to update item: ${response.status} ${response.statusText}`);
+    }
+    
+    return response.json();
+  } catch (error) {
+    console.error('Network error updating item:', error);
+    throw error;
   }
-  
-  return response.json();
 }
 
 export async function createWhiteboardItem(item: WindowItem) {
@@ -338,13 +377,19 @@ export async function createWhiteboardItem(item: WindowItem) {
 }
 
 export async function deleteWhiteboardItem(id: string) {
-
+  
   const response = await fetch(`${getBaseUrl()}/api/v1/whiteboard-item/${id}`, {
       method: 'DELETE',
   });
-  
+    
   if (!response.ok) {
-      throw new Error('Failed to delete item');
+      const errorText = await response.text();
+      console.error('Delete failed with status:', response.status, 'Error:', errorText);
+      throw new Error(`Failed to delete item: ${response.status} ${errorText}`);
+  }
+  
+  if (response.status === 204) {
+      return { success: true };
   }
   
   return response.json();

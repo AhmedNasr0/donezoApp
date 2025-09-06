@@ -78,25 +78,29 @@ export class WhiteboardItemController {
             const { id } = req.params;
             if(!id) return res.json({message: "id is required"});
 
+
             const existing = await this.repository.findById(id);
             if (!existing) {
                 return res.status(404).json({ message: "Item not found" });
             }
 
+            // Extract item data from the request body
+            const itemData = req.body.item || req.body;
+            
             const updated = new WhiteboardItem(
                 id,
-                req.body.type ?? existing.type,
-                req.body.title ?? existing.title,
-                req.body.content ?? existing.content,
-                req.body.position ?? existing.position,
-                req.body.size ?? existing.size,
-                req.body.zIndex ?? existing.zIndex,
-                req.body.isAttached ?? existing.isAttached,
-                req.body.isLocked ?? existing.isLocked,
+                itemData.type ?? existing.type,
+                itemData.title ?? existing.title,
+                itemData.content ?? existing.content,
+                itemData.position ?? existing.position,
+                itemData.size ?? existing.size,
+                itemData.zIndex ?? existing.zIndex,
+                itemData.isAttached ?? existing.isAttached,
+                itemData.isLocked ?? existing.isLocked,
                 existing.createdAt,
                 new Date(),
-                req.body.connections ?? existing.connections,
-                req.body.whiteboardId ?? existing.whiteboardId
+                itemData.connections ?? existing.connections,
+                itemData.whiteboardId ?? existing.whiteboardId
             );
 
             const result = await this.repository.updateItem(updated);
@@ -110,12 +114,16 @@ export class WhiteboardItemController {
     async deleteItem(req: Request, res: Response) {
         try {
             const { id } = req.params;
-            if(!id) return res.json({message: "id is required"});
+            
+            if(!id) {
+                return res.json({message: "id is required"});
+            }
 
             await this.repository.deleteItem(id);
             res.status(204).send();
         } catch (error: any) {
             console.error("Error deleting item:", error);
+            console.error("Item ID that failed to delete:", req.params.id);
             res.status(500).json({ error: error.message });
         }
     }

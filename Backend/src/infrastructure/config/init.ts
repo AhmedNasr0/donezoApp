@@ -6,7 +6,7 @@ export const databaseConfig = {
 type appConfig ={
     port: number
 }
-
+ 
 export const appConfig : appConfig = {
     port: Number(process.env.PORT) || 3000 
 }

@@ -17,7 +17,7 @@ import { useSelection } from '@/hooks/use-selection';
 import { useHistory } from '@/hooks/use-history';
 import { useConnections } from '@/hooks/use-connections';
 import { useToast } from '@/hooks/use-toast';
-import { createChat, createConnection, deleteConnection,
+import { createChat, deleteChat, createConnection, deleteConnection,
   saveWhiteboardState,
   createWhiteboardItem,
   updateWhiteboardItem,
@@ -112,7 +112,6 @@ React.useEffect(() => {
               
               if (convertedConnection.from && convertedConnection.to) {
                 connectionMap.set(connection.id, convertedConnection);
-                console.log('Added connection:', convertedConnection.id, convertedConnection.from, '->', convertedConnection.to);
               }
             });
           }
@@ -254,6 +253,7 @@ React.useEffect(() => {
         isAttached: false,
         zIndex: newZIndex,
         connections: [],
+        isPending: true, // Mark as pending for optimistic updates
       };
       
       lastGridPosition.current.x += WINDOW_WIDTH + GRID_GUTTER;
@@ -267,10 +267,23 @@ React.useEffect(() => {
 
       try {
         if (type === 'ai') {
-            const newChat = await createChat(newItem.title);
-            newItem.id = newChat.data?.id.toString();
+            // Optimistic update for AI chat
             newItem.title = "AI Assistant";
             newItem.size = { width: 400, height: 550 };
+            
+            // Create chat in background
+            createChat(newItem.title).then((newChat) => {
+              if (newChat.data?.id) {
+                setItems((prev) => prev.map(item => 
+                  item.id === newItem.id ? { ...item, id: newChat.data.id.toString(), isPending: false } : item
+                ));
+              }
+            }).catch((error) => {
+              console.error('Failed to create chat:', error);
+              setItems((prev) => prev.map(item => 
+                item.id === newItem.id ? { ...item, isPending: false, isError: true } : item
+              ));
+            });
         } else if (type === 'doc') {
             newItem.content = '';
             newItem.title = 'Document Upload';
@@ -315,11 +328,24 @@ React.useEffect(() => {
             newItem.content = 'https://placehold.co/600x400.png';
         }
 
-        const savedItem = await createWhiteboardItem(newItem);
-        if (savedItem.sucess) {
-          newItem.id = savedItem.data.id;
-        }
-        return savedItem.data || newItem;
+        // Optimistic update: add item immediately to UI
+        // Save to backend in background
+        createWhiteboardItem(newItem).then((savedItem) => {
+          if (savedItem.sucess) {
+            // Update the item with the backend ID and remove pending flag
+            setItems((prev) => prev.map(item => 
+              item.id === newItem.id ? { ...item, id: savedItem.data.id, isPending: false } : item
+            ));
+          }
+        }).catch((error) => {
+          console.error('Failed to save item to backend:', error);
+          // Mark item as failed to save
+          setItems((prev) => prev.map(item => 
+            item.id === newItem.id ? { ...item, isPending: false, isError: true } : item
+          ));
+        });
+        
+        return newItem;
       } finally {
         pendingOperations.current.delete(operationId);
       }
@@ -431,17 +457,43 @@ React.useEffect(() => {
         });
       }
       
+      // Optimistic update: remove item immediately from UI
       setItems((prev) => prev.filter((item) => item.id !== id));
       selection.selectItems([]);
       
-      await deleteWhiteboardItem(id);
-      
-      // Also delete all connections for this item
+      // Delete connections optimistically
       const itemConnections = getItemConnections(id, connections.connections);
       for (const conn of itemConnections) {
-        await deleteConnection(conn.id);
         connections.deleteConnection(conn.id);
       }
+      
+      // Delete from backend in background
+      const deletePromises = [
+        deleteWhiteboardItem(id),
+        ...itemConnections.map(conn => deleteConnection(conn.id))
+      ];
+      
+      // If it's an AI chat item, also try to delete the chat
+      if (itemToDelete?.type === 'ai') {
+        deletePromises.push(
+          deleteChat(id).catch((chatError) => {
+            console.warn('Failed to delete chat (may not exist or be orphaned):', chatError);
+            // Don't throw error - chat deletion failure shouldn't prevent item deletion
+            return { success: false, error: chatError.message };
+          })
+        );
+      }
+      
+      Promise.all(deletePromises).then((results) => {
+      }).catch((error) => {
+        console.error('Error deleting item from database:', error);
+        console.error('Item ID:', id, 'Item type:', itemToDelete?.type);
+        toast({
+          variant: 'destructive',
+          title: 'Delete failed',
+          description: `Could not delete ${itemToDelete?.type || 'item'}. Please refresh and try again.`,
+        });
+      });
       
     } catch (error) {
       console.error('Error deleting item from database:', error);
@@ -496,6 +548,7 @@ React.useEffect(() => {
           if (existingConnections.length > 0) {
             const existingConnection = existingConnections[0];
             
+            // Optimistic update: remove connection immediately
             connections.deleteConnection(existingConnection.id);
             
             setItems(prev => prev.map(item => {
@@ -516,32 +569,103 @@ React.useEffect(() => {
               });
             }
             
-            await deleteConnection(existingConnection.id);
+            // Delete from backend in background
+            deleteConnection(existingConnection.id).catch((error) => {
+              console.error('Failed to delete connection:', error);
+              // Re-add the connection if deletion failed
+              connections.addConnection(
+                existingConnection.from,
+                existingConnection.to,
+                existingConnection.type,
+                existingConnection.id
+              );
+              setItems(prev => prev.map(item => {
+                if (item.id === fromItem.id) {
+                  return {
+                    ...item,
+                    connections: [...item.connections, existingConnection]
+                  };
+                }
+                return item;
+              }));
+              toast({
+                variant: "destructive",
+                title: "Connection deletion failed",
+                description: "Could not delete connection. Please try again."
+              });
+            });
+            
             toast({ description: "Connection removed successfully." });
           } else {
-            const newConnectionFromBackend = await createConnection(
-              fromItem.id,
-              fromItem.type,
-              toItem.id,
-              toItem.type
+            // Optimistic update: add connection immediately
+            const tempConnection = connections.addConnection(
+              linking.from, 
+              id, 
+              'association'
             );
             
-            if (newConnectionFromBackend?.success) {
-              const realConnection = connections.addConnection(
-                linking.from, 
-                id, 
-                'association', 
-                newConnectionFromBackend.data.id
-              );
+            if (tempConnection) {
+              // Update items immediately
+              setItems(prev => prev.map(item => {
+                if (item.id === fromItem.id) {
+                  return {
+                    ...item,
+                    connections: [...item.connections, tempConnection]
+                  };
+                }
+                return item;
+              }));
               
-              if (realConnection) {
-                await handleUpdateItem({
-                  ...fromItem,
-                  connections: [...fromItem.connections, realConnection]
-                }, true); 
-                
-                toast({ description: "Items connected successfully" });
-              }
+              // Create connection in backend in background
+              createConnection(
+                fromItem.id,
+                fromItem.type,
+                toItem.id,
+                toItem.type
+              ).then((newConnectionFromBackend) => {
+                if (newConnectionFromBackend?.success) {
+                  // Replace temp connection with real one
+                  connections.replaceConnection(tempConnection.id, {
+                    ...tempConnection,
+                    id: newConnectionFromBackend.data.id
+                  });
+                  
+                  // Update items with real connection ID
+                  setItems(prev => prev.map(item => {
+                    if (item.id === fromItem.id) {
+                      return {
+                        ...item,
+                        connections: item.connections.map(conn => 
+                          conn.id === tempConnection.id 
+                            ? { ...conn, id: newConnectionFromBackend.data.id }
+                            : conn
+                        )
+                      };
+                    }
+                    return item;
+                  }));
+                }
+              }).catch((error) => {
+                console.error('Failed to create connection:', error);
+                // Remove the optimistic connection
+                connections.deleteConnection(tempConnection.id);
+                setItems(prev => prev.map(item => {
+                  if (item.id === fromItem.id) {
+                    return {
+                      ...item,
+                      connections: item.connections.filter(c => c.id !== tempConnection.id)
+                    };
+                  }
+                  return item;
+                }));
+                toast({
+                  variant: "destructive",
+                  title: "Connection failed",
+                  description: "Could not create connection. Please try again."
+                });
+              });
+              
+              toast({ description: "Items connected successfully" });
             }
           }
         } catch (error) {
@@ -550,7 +674,6 @@ React.useEffect(() => {
             title: "Connection operation failed",
             description: "Could not process connection. Please try again.",
           });
-          console.log("failed to process connection", error);
         } finally {
           pendingOperations.current.delete(operationId);
         }
@@ -859,13 +982,10 @@ React.useEffect(() => {
     if (!connection) return;
     
     try {
-      // Delete from backend
-      await deleteConnection(connectionId);
-      
-      // Delete from frontend state
+      // Optimistic update: delete from frontend state immediately
       connections.deleteConnection(connectionId);
       
-      // Remove from the owning item
+      // Remove from the owning item immediately
       const ownerItem = items.find(item => 
         item.connections?.some(c => c.id === connectionId)
       );
@@ -875,7 +995,11 @@ React.useEffect(() => {
           ...ownerItem,
           connections: ownerItem.connections.filter(c => c.id !== connectionId)
         };
-        await handleUpdateItem(updatedItem);
+        
+        // Update items immediately
+        setItems(prev => prev.map(item => 
+          item.id === ownerItem.id ? updatedItem : item
+        ));
         
         if (!history.isUndoRedoing) {
           history.addToHistory({
@@ -885,6 +1009,32 @@ React.useEffect(() => {
           });
         }
       }
+      
+      // Delete from backend in background
+      deleteConnection(connectionId).catch((error) => {
+        console.error('Error deleting connection:', error);
+        // Re-add the connection if deletion failed
+        connections.addConnection(
+          connection.from,
+          connection.to,
+          connection.type,
+          connection.id
+        );
+        
+        if (ownerItem) {
+          setItems(prev => prev.map(item => 
+            item.id === ownerItem.id 
+              ? { ...item, connections: [...item.connections, connection] }
+              : item
+          ));
+        }
+        
+        toast({
+          variant: "destructive",
+          title: "Failed to delete connection",
+          description: "Could not delete connection. Please try again.",
+        });
+      });
       
       toast({
         description: "Connection deleted successfully",
@@ -898,7 +1048,7 @@ React.useEffect(() => {
         description: "Could not delete connection. Please try again.",
       });
     }
-  }, [connections, items, handleUpdateItem, history, toast]);
+  }, [connections, items, history, toast]);
 
   // Filter items based on search
   const filteredItems = React.useMemo(() => {

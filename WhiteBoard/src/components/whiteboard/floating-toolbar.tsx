@@ -49,7 +49,7 @@ export function FloatingToolbar({
 }: FloatingToolbarProps) {
   return (
     <TooltipProvider>
-      <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-40">
+      <div data-bottombar className="fixed top-20 left-1/2 transform -translate-x-1/2 z-40">
         <div className="bg-background/95 backdrop-blur-sm border border-border rounded-lg shadow-lg p-2">
           {/* Selection Actions (only show when items are selected) */}
           {hasSelection && (

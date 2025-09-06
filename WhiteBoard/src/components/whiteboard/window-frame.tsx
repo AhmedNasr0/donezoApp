@@ -45,6 +45,9 @@ export function WindowFrame({ item, items, isLinking, isLinkingFrom, isSelected,
   React.useEffect(() => {
     const needsProcessing = ['youtube', 'tiktok', 'instagram'].includes(item.type)
     if (!needsProcessing) return
+    
+    // Don't fetch status for pending items (temporary IDs)
+    if (item.isPending) return
 
     let cancelled = false
     let timer: ReturnType<typeof setTimeout> | null = null
@@ -76,7 +79,7 @@ export function WindowFrame({ item, items, isLinking, isLinkingFrom, isSelected,
       if (timer) clearTimeout(timer)
     }
   
-  }, [item.id, item.type, onUpdate])
+  }, [item.id, item.type, item.isPending, onUpdate])
 
 
 
@@ -155,7 +158,9 @@ export function WindowFrame({ item, items, isLinking, isLinkingFrom, isSelected,
     // Re-enable text selection and reset cursor when dragging stops
     document.body.style.userSelect = '';
     document.body.style.cursor = '';
-  }, []);
+    
+    onUpdate({ ...item, position: item.position });
+  }, [item, onUpdate]);
 
   const handleResizeStart = (e: React.MouseEvent<HTMLDivElement>) => {
     e.stopPropagation();

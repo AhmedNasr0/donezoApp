@@ -53,6 +53,8 @@ export type WindowItem = {
   isLocked?: boolean;
   groupId?: string;
   whiteboardId?:string;
+  isPending?: boolean; // For optimistic updates
+  isError?: boolean; // For failed operations
 };
 
 export type SelectionBox = {

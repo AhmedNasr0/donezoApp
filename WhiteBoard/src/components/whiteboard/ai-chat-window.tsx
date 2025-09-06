@@ -35,6 +35,10 @@ export function AiChatWindow({ item, items }: AiChatWindowProps) {
     const loadChatHistory = async () => {
       try {
         setIsLoadingHistory(true);
+        
+        // Add a small delay to allow chat creation to complete
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
         const response = await getChatHistory(item.id);
         
         if (response.success && response.data.messages) {
@@ -54,9 +58,13 @@ export function AiChatWindow({ item, items }: AiChatWindowProps) {
             });
           }
         }
-      } catch (error) {
-        console.error('Error loading chat history:', error);
-        console.log('No previous chat history found or error loading history');
+      } catch (error: any) {
+        // If chat not found, it means the chat was deleted or not yet created - this is normal
+        if (error.message?.includes('Chat not found') || error.message?.includes('Failed to get chat history')) {
+          setMessages([]);
+        } else {
+          console.error('Error loading chat history:', error);
+        }
       } finally {
         setIsLoadingHistory(false);
       }
@@ -157,17 +165,28 @@ export function AiChatWindow({ item, items }: AiChatWindowProps) {
         return;
       }
   
-      const historyResponse = await getChatHistory(item.id);
-      if (historyResponse.success && historyResponse.data.messages) {
-        const loadedMessages: Message[] = historyResponse.data.messages.map((msg: any) => ({
-          id: msg.id,
-          role: msg.role,
-          content: msg.content,
-          context: msg.context || [],
-          createdAt: new Date(msg.createdAt)
-        }));
+      try {
+        // Add a small delay to ensure chat is ready
+        await new Promise(resolve => setTimeout(resolve, 500));
         
-        setMessages(loadedMessages);
+        const historyResponse = await getChatHistory(item.id);
+        if (historyResponse.success && historyResponse.data.messages) {
+          const loadedMessages: Message[] = historyResponse.data.messages.map((msg: any) => ({
+            id: msg.id,
+            role: msg.role,
+            content: msg.content,
+            context: msg.context || [],
+            createdAt: new Date(msg.createdAt)
+          }));
+          
+          setMessages(loadedMessages);
+        }
+      } catch (historyError: any) {
+        // If chat not found, continue with current messages
+        if (historyError.message?.includes('Chat not found')) {
+        } else {
+          console.error('Error loading chat history after sending message:', historyError);
+        }
       }
   
     } catch (error) {
