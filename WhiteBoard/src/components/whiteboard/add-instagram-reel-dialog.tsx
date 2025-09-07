@@ -62,7 +62,7 @@ export function AddInstagramReelDialog({ isOpen, onOpenChange, onAddReel }: AddI
               <Input
                 value={link}
                 onChange={(e) => handleLinkChange(index, e.target.value)}
-                placeholder="https://www.instagram.com/reel/..."
+                placeholder="https://www.instagram.com/reels/ABC123DEF456/"
               />
               {links.length > 1 && (
                 <Button variant="ghost" size="icon" onClick={() => handleRemoveLinkInput(index)}>

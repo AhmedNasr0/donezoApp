@@ -9,6 +9,7 @@ import { X, GripVertical, Lock } from 'lucide-react';
 import { AiChatWindow } from './ai-chat-window';
 import { cn } from '@/lib/utils';
 import { TiktokEmbed } from './tiktok-embed';
+import { InstagramEmbed } from './instagram-embed';
 import { DocumentDropzone } from './document-dropzone';
 import { ImageDropzone } from './image-dropzone';
 import { getStautsOfVideo } from '@/lib/api';
@@ -284,9 +285,13 @@ export function WindowFrame({ item, items, isLinking, isLinkingFrom, isSelected,
           <TiktokEmbed url={item.content} />;
           <ProcessingOverlay status={status} />
           </>
+      case 'instagram':
+        return <>
+          <InstagramEmbed url={item.content} />;
+          <ProcessingOverlay status={status} />
+        </>
       case 'url':
       case 'social':
-      case 'instagram':
         return <>
             <iframe src={item.content} className="h-full w-full border-0" title={item.title}></iframe>;
             <ProcessingOverlay status={status} />

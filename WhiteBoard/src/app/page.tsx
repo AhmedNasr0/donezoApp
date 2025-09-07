@@ -316,7 +316,7 @@ React.useEffect(() => {
               newItem.title = 'Tiktok Profile';
             }
         } else if (type === 'instagram') {
-          if (itemContent?.includes('/reel/')) {
+          if (itemContent?.includes('/reel/') || itemContent?.includes('/reels/')) {
             newItem.title = 'New Reel';
             newItem.size = { width: 325, height: 580 };
           } else {
