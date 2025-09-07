@@ -67,13 +67,13 @@ export class ConnectionRepository implements IConnectionRepository {
                 if (error.code === '23503') {
                     // Foreign key constraint violation
                     console.error('Foreign key constraint violation:', error);
-                    throw new Error(`One or both items do not exist: ${error.message}`);
+                    // throw new Error(`One or both items do not exist: ${error.message}`);
                 }
                 
                 if (error.code === '23502') {
                     // Not null constraint violation
                     console.error('Not null constraint violation:', error);
-                    throw new Error(`Required field is missing: ${error.message}`);
+                    // throw new Error(`Required field is missing: ${error.message}`);
                 }
                 
                 console.error('Supabase error creating connection:', error);

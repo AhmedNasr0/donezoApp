@@ -30,6 +30,7 @@ import { WhiteboardRepository } from './infrastructure/repositories/supabaseWhit
 import { UserController } from './presentation/controllers/userController'
 import { WhiteboardItemRepository } from './infrastructure/repositories/supabaseWhiteboardItemRepository'
 import { WhiteboardItemController } from './presentation/controllers/whiteboardItemController'
+import { DeleteWhiteboardItemUseCase } from './application/use-cases/whiteboardItemUseCases/deleteWhiteboardItemUseCase'
 
 async function bootstrap(): Promise<void> {
     try {
@@ -77,6 +78,7 @@ async function bootstrap(): Promise<void> {
         const chatUseCase = new ChatUseCase(chatRepository,chatMsgRepository,connectionRepository,getVideoStatusUseCase,LLMOrchestrator)
         const videoUseCase = new VideoUseCase(videoRepository,connectionRepository,jobRepository)
         const chatMsgUseCase = new ChatMessageUseCase(chatMsgRepository,chatRepository,connectionRepository,getVideoStatusUseCase , LLMOrchestrator)
+        const deleteWhiteboardItemUseCase = new DeleteWhiteboardItemUseCase(whiteboardItemRepository, connectionRepository)
 
         
         // Initialize controllers
@@ -87,7 +89,7 @@ async function bootstrap(): Promise<void> {
         const videoController = new VideoController(videoUseCase)
         const whiteboardController = new WhiteboardController(whiteboardRepository,connectionRepository,whiteboardItemRepository)
         const userController = new UserController()
-        const whiteboardItemController = new WhiteboardItemController(whiteboardItemRepository,uploadVideoUseCase)
+        const whiteboardItemController = new WhiteboardItemController(whiteboardItemRepository,uploadVideoUseCase,deleteWhiteboardItemUseCase)
 
 
         // Initialize and start server

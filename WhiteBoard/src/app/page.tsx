@@ -458,28 +458,40 @@ React.useEffect(() => {
         });
       }
       
-      // Optimistic update: remove item immediately from UI
+      // ✅ SOLUTION 1: Get connections that will be deleted
+      const itemConnections = getItemConnections(id, connections.connections);
+      const connectionIdsToDelete = itemConnections.map(conn => conn.id);
+      
+      // ✅ Step 1: Remove item from items state (optimistic update)
       setItems((prev) => prev.filter((item) => item.id !== id));
       selection.selectItems([]);
       
-      // Delete connections optimistically
-      const itemConnections = getItemConnections(id, connections.connections);
-      for (const conn of itemConnections) {
-        connections.deleteConnection(conn.id);
-      }
+      // ✅ Step 2: Remove ONLY the connections that belong to the deleted item
+      // Don't touch connections between other items!
+      connections.setConnections(prevConnections => 
+        prevConnections.filter(conn => !connectionIdsToDelete.includes(conn.id))
+      );
       
-      // Delete from backend in background
-      // Note: deleteWhiteboardItem now handles connection deletion automatically
+      // ✅ Step 3: Update other items to remove references to deleted connections
+      setItems(prevItems => 
+        prevItems.map(item => ({
+          ...item,
+          connections: item.connections.filter(conn => 
+            !connectionIdsToDelete.includes(conn.id)
+          )
+        }))
+      );
+      
+      // ✅ Step 4: Delete from backend (CASCADE will handle connections automatically)
       const deletePromises = [
-        deleteWhiteboardItem(id)
+        deleteWhiteboardItem(id) // This will CASCADE delete connections in DB
       ];
       
-      // If it's an AI chat item, also try to delete the chat
+      // If it's an AI chat item, also delete the chat
       if (itemToDelete?.type === 'ai') {
         deletePromises.push(
           deleteChat(id).catch((chatError) => {
-            console.warn('Failed to delete chat (may not exist or be orphaned):', chatError);
-            // Don't throw error - chat deletion failure shouldn't prevent item deletion
+            console.warn('Failed to delete chat:', chatError);
             return { success: false, error: chatError.message };
           })
         );
@@ -489,31 +501,44 @@ React.useEffect(() => {
         console.log('Successfully deleted item and its connections from backend');
       }).catch((error) => {
         console.error('Error deleting item from database:', error);
-        console.error('Item ID:', id, 'Item type:', itemToDelete?.type);
         
-        // Only show error for actual failures, not for "already deleted" cases
-        if (error.message && !error.message.includes('not found') && !error.message.includes('already deleted')) {
-          // Re-add the item and its connections if deletion failed
+        if (error.message && !error.message.includes('not found')) {
+          // ✅ Rollback: Re-add the item and connections if deletion failed
           if (itemToDelete) {
             setItems(prev => [...prev, itemToDelete]);
           }
+          
+          // Re-add the connections
           itemConnections.forEach(conn => {
             connections.addConnection(conn.from, conn.to, conn.type, conn.id);
           });
           
+          // Re-add connections to items
+          setItems(prevItems => 
+            prevItems.map(item => {
+              const itemConns = itemConnections.filter(conn => 
+                conn.from === item.id || conn.to === item.id
+              );
+              if (itemConns.length > 0) {
+                return {
+                  ...item,
+                  connections: [...item.connections, ...itemConns]
+                };
+              }
+              return item;
+            })
+          );
+          
           toast({
             variant: 'destructive',
             title: 'Delete failed',
-            description: `Could not delete ${itemToDelete?.type || 'item'}. Please refresh and try again.`,
+            description: `Could not delete ${itemToDelete?.type || 'item'}.`,
           });
-        } else {
-          // Item was already deleted or not found - this is fine
-          console.log('Item was already deleted or not found');
         }
       });
       
     } catch (error) {
-      console.error('Error deleting item from database:', error);
+      console.error('Error deleting item:', error);
       toast({
         variant: 'destructive',
         title: 'Delete failed',

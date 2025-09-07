@@ -2,12 +2,14 @@ import { Request, Response } from "express";
 import { WhiteboardItemRepository } from "../../infrastructure/repositories/supabaseWhiteboardItemRepository";
 import { WhiteboardItem } from "../../domain/entities/whiteboardItem.entity";
 import { UploadVideoUseCase } from "../../application/use-cases/uploadVideoUseCase";
+import { DeleteWhiteboardItemUseCase } from "../../application/use-cases/whiteboardItemUseCases/deleteWhiteboardItemUseCase";
 
 export class WhiteboardItemController {
 
     constructor(
         private repository: WhiteboardItemRepository,
-        private uploadVideoUseCase:UploadVideoUseCase
+        private uploadVideoUseCase: UploadVideoUseCase,
+        private deleteWhiteboardItemUseCase: DeleteWhiteboardItemUseCase
     ) {
 
     }
@@ -119,7 +121,9 @@ export class WhiteboardItemController {
                 return res.json({message: "id is required"});
             }
 
-            await this.repository.deleteItem(id);
+            // Use the DeleteWhiteboardItemUseCase to handle cascade deletion
+            await this.deleteWhiteboardItemUseCase.execute(id);
+            
             res.status(204).send();
         } catch (error: any) {
             console.error("Error deleting item:", error);
