@@ -1,6 +1,7 @@
 import { Connection } from "../entities/connection.entity";
 
 export interface IConnectionRepository {
+    cleanupOrphanedConnections(): unknown;
     createConnection(connection: Connection): Promise<Connection>;
     findConnectionsByID(id: string): Promise<Connection | null>;
     findConnectionsByWhiteboard(whiteboardId: string): Promise<Connection[]>;

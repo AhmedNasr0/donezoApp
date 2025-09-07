@@ -13,36 +13,55 @@ export class ConnectionController {
         try {
             const { fromId, fromType, toId, toType, connectionType = 'association', label, description } = req.body;
 
-            if (!fromId || !toId || !fromType || !toType) {
+            // Debug logging
+            console.log('Connection creation request:', { fromId, fromType, toId, toType, connectionType });
+
+            if (!fromId || !toId) {
                 return res.status(400).json({
                     success: false,
-                    message: 'fromId, toId, fromType, and toType are required'
+                    message: 'fromId and toId are required'
                 });
             }
 
-            const exists = await this.connectionRepository.connectionExists(fromId, toId);
-            if (exists) {
-                return res.status(409).json({
-                    success: false,
-                    message: 'Connection already exists between these items'
-                });
-            }
+            // Ensure types are not null or undefined
+            const safeFromType = fromType || 'unknown';
+            const safeToType = toType || 'unknown';
+            
+            console.log('Safe types:', { safeFromType, safeToType });
 
+            // Check if both items exist first
             const fromItem = await this.whiteboardItemRepository.findById(fromId);
             const toItem = await this.whiteboardItemRepository.findById(toId);
 
-            if (!fromItem || !toItem) {
+            if (!fromItem) {
                 return res.status(404).json({
                     success: false,
-                    message: 'One or both items not found'
+                    message: `From item ${fromId} not found`
+                });
+            }
+
+            if (!toItem) {
+                return res.status(404).json({
+                    success: false,
+                    message: `To item ${toId} not found`
+                });
+            }
+
+            // Check if connection already exists
+            const exists = await this.connectionRepository.connectionExists(fromId, toId);
+            if (exists) {
+                return res.status(200).json({
+                    success: true,
+                    message: 'Connection already exists',
+                    data: null
                 });
             }
             const newConnection = new Connection(
                 crypto.randomUUID(),
                 fromId,
-                fromType,
+                safeFromType,
                 toId,
-                toType,
+                safeToType,
                 connectionType,
                 label,
                 description,
@@ -68,6 +87,39 @@ export class ConnectionController {
 
         } catch (error) {
             console.error('Error creating connection:', error);
+            
+            // Handle specific error cases
+            if (error instanceof Error) {
+                if (error.message.includes('already exists') || error.message.includes('duplicate')) {
+                    return res.status(200).json({
+                        success: true,
+                        message: 'Connection already exists',
+                        data: null
+                    });
+                }
+                
+                if (error.message.includes('does not exist') || error.message.includes('not found')) {
+                    return res.status(404).json({
+                        success: false,
+                        message: error.message
+                    });
+                }
+                
+                if (error.message.includes('Required field is missing') || error.message.includes('not-null constraint')) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Invalid connection data: missing required fields'
+                    });
+                }
+                
+                if (error.message.includes('not found') || error.message.includes('do not exist')) {
+                    return res.status(404).json({
+                        success: false,
+                        message: 'One or both items not found'
+                    });
+                }
+            }
+            
             return res.status(500).json({
                 success: false,
                 message: 'Internal server error',
@@ -183,6 +235,26 @@ export class ConnectionController {
 
         } catch (error) {
             console.error('Error updating connection:', error);
+            return res.status(500).json({
+                success: false,
+                message: 'Internal server error',
+                error: error instanceof Error ? error.message : 'Unknown error'
+            });
+        }
+    }
+
+    async cleanupOrphanedConnections(req: Request, res: Response) {
+        try {
+            const cleanedCount = await this.connectionRepository.cleanupOrphanedConnections();
+            
+            return res.status(200).json({
+                success: true,
+                message: `Cleaned up ${cleanedCount} orphaned connections`,
+                data: { cleanedCount }
+            });
+
+        } catch (error) {
+            console.error('Error cleaning up orphaned connections:', error);
             return res.status(500).json({
                 success: false,
                 message: 'Internal server error',

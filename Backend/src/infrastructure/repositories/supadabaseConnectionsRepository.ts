@@ -4,33 +4,40 @@ import { supabase } from '../database/supabase_client';
 
 export class ConnectionRepository implements IConnectionRepository {
     async createConnection(connection: Connection): Promise<Connection> {
-        if (!connection.fromId || !connection.toId) {
+        if (!connection.fromId || !connection.toId) { 
             throw new Error('Connection must have valid fromId and toId');
-          }
+        }
       
-          if (connection.fromId === connection.toId) {
+        if (connection.fromId === connection.toId) {
             throw new Error('Cannot create self-connection');
-          }
+        }
+
+        // Note: Item existence validation is handled by the controller
       
-          const existingConnection = await this.getConnectionBetweenItems(
+        // Check for existing connection (bidirectional)
+        const existingConnection = await this.getConnectionBetweenItems(
             connection.fromId, 
             connection.toId
-          );
+        );
       
-          if (existingConnection) {
-            throw new Error('Connection already exists between these items');
-          }
+        if (existingConnection) {
+            // Return existing connection instead of throwing error
+            console.log('Connection already exists, returning existing connection');
+            return existingConnection;
+        }
       
-          try {
+        try {
+            const whiteboardId = await this.getWhiteboardIdFromItem(connection.fromId);
+            
             const { data, error } = await supabase
               .from('connections')
               .insert([{
                 id: connection.id || crypto.randomUUID(),
                 from_id: connection.fromId,
-                from_type: connection.fromType,
+                from_type: connection.fromType || 'unknown',
                 to_id: connection.toId,
-                to_type: connection.toType,
-                connection_type: connection.type,
+                to_type: connection.toType || 'unknown',
+                connection_type: connection.type || 'association',
                 label: connection.label || null,
                 description: connection.description || null,
                 bidirectional: connection.bidirectional || false,
@@ -41,21 +48,43 @@ export class ConnectionRepository implements IConnectionRepository {
                 created_timestamp: Date.now(),
                 updated_timestamp: Date.now(),
                 metadata: connection.metadata || null,
-                whiteboard_id: await this.getWhiteboardIdFromItem(connection.fromId)
+                whiteboard_id: whiteboardId
               }])
               .select()
               .single();
       
             if (error) {
-              console.error('Supabase error creating connection:', error);
-              throw new Error(`Database error: ${error.message}`);
+                // Handle specific database errors gracefully
+                if (error.code === '23505') {
+                    // Duplicate key error - connection already exists
+                    console.log('Connection already exists, fetching existing connection');
+                    const existing = await this.getConnectionBetweenItems(connection.fromId, connection.toId);
+                    if (existing) {
+                        return existing;
+                    }
+                }
+                
+                if (error.code === '23503') {
+                    // Foreign key constraint violation
+                    console.error('Foreign key constraint violation:', error);
+                    throw new Error(`One or both items do not exist: ${error.message}`);
+                }
+                
+                if (error.code === '23502') {
+                    // Not null constraint violation
+                    console.error('Not null constraint violation:', error);
+                    throw new Error(`Required field is missing: ${error.message}`);
+                }
+                
+                console.error('Supabase error creating connection:', error);
+                throw new Error(`Database error: ${error.message}`);
             }
       
-            return data;
-          } catch (error) {
+            return this.mapRowToConnection(data);
+        } catch (error) {
             console.error('Error creating connection:', error);
             throw error;
-          }
+        }
     }
 
     async getConnectionBetweenItems(fromId: string, toId: string) {
@@ -208,10 +237,10 @@ export class ConnectionRepository implements IConnectionRepository {
             .insert(connections.map(c => ({
                 id: c.id,
                 from_id: c.fromId,
-                from_type: c.fromType,
+                from_type: c.fromType || 'unknown',
                 to_id: c.toId,
-                to_type: c.toType,
-                connection_type: c.type,
+                to_type: c.toType || 'unknown',
+                connection_type: c.type || 'association',
                 label: c.label,
                 description: c.description,
                 style: c.style,
@@ -235,6 +264,58 @@ export class ConnectionRepository implements IConnectionRepository {
             .in('id', connectionIds);
 
         if (error) throw error;
+    }
+
+    async cleanupOrphanedConnections(): Promise<number> {
+        try {
+            // Find connections where either from_id or to_id doesn't exist in whiteboard_items
+            const { data: orphanedConnections, error: findError } = await supabase
+                .from('connections')
+                .select('id')
+                .or('from_id.not.in.(select id from whiteboard_items),to_id.not.in.(select id from whiteboard_items)');
+
+            if (findError) {
+                console.error('Error finding orphaned connections:', findError);
+                return 0;
+            }
+
+            if (!orphanedConnections || orphanedConnections.length === 0) {
+                return 0;
+            }
+
+            const orphanedIds = orphanedConnections.map(conn => conn.id);
+            
+            // Delete orphaned connections
+            const { error: deleteError } = await supabase
+                .from('connections')
+                .delete()
+                .in('id', orphanedIds);
+
+            if (deleteError) {
+                console.error('Error deleting orphaned connections:', deleteError);
+                return 0;
+            }
+
+            console.log(`Cleaned up ${orphanedIds.length} orphaned connections`);
+            return orphanedIds.length;
+        } catch (error) {
+            console.error('Error in cleanupOrphanedConnections:', error);
+            return 0;
+        }
+    }
+
+    private async checkItemExists(itemId: string): Promise<boolean> {
+        try {
+            const { data, error } = await supabase
+                .from('whiteboard_items')
+                .select('id')
+                .eq('id', itemId)
+                .single();
+
+            return !error && data !== null;
+        } catch (error) {
+            return false;
+        }
     }
 
     private async getWhiteboardIdFromItem(itemId: string): Promise<string | null> {

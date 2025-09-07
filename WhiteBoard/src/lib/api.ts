@@ -222,6 +222,15 @@ export async function createConnection(
   description?: string
 ) {
   try {
+      // Validate input parameters
+      if (!fromId || !toId) {
+          throw new Error('fromId and toId are required');
+      }
+      
+      if (!fromType || !toType) {
+          console.warn('Missing types, using defaults:', { fromType, toType });
+      }
+      
       const response = await fetch(`${getBaseUrl()}/api/v1/connections/`, {
           method: 'POST',
           headers: {
@@ -229,22 +238,51 @@ export async function createConnection(
           },
           body: JSON.stringify({
               fromId,
-              fromType,
+              fromType: fromType || 'unknown',
               toId,
-              toType,
+              toType: toType || 'unknown',
               connectionType,
               label,
               description
           }),
       });
 
-      if (!response.ok) {
-          throw new Error(`Failed to create connection: ${response.statusText}`);
+      const result = await response.json();
+
+      // Handle different response scenarios gracefully
+      if (response.ok) {
+          return result;
       }
 
-      return response.json();
+      // Handle specific error cases
+      if (response.status === 200 && result.success && result.message?.includes('already exists')) {
+          // Connection already exists - this is not an error
+          console.log('Connection already exists:', result.message);
+          return result;
+      }
+
+      if (response.status === 404) {
+          console.warn('Items not found for connection:', result.message);
+          return { success: false, message: result.message };
+      }
+
+      if (response.status === 400) {
+          console.warn('Invalid connection request:', result.message);
+          return { success: false, message: result.message };
+      }
+
+      // For other errors, throw
+      throw new Error(`Failed to create connection: ${result.message || response.statusText}`);
+
   } catch (error) {
       console.error('Error creating connection:', error);
+      
+      // Handle network errors gracefully
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+          console.warn('Network error creating connection - connection may still be created');
+          return { success: false, message: 'Network error - please check your connection' };
+      }
+      
       throw error;
   }
 }

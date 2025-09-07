@@ -27,6 +27,7 @@ import { createChat, deleteChat, createConnection, deleteConnection,
  } from '@/lib/api';
 import { get } from 'http';
 import { getItemConnections } from '@/lib/connection-utils';
+import { LoadingScreen } from '@/components/loading-screen';
 
 export default function WhiteboardPage() {
   const { user, signOut } = useAuth();
@@ -468,9 +469,9 @@ React.useEffect(() => {
       }
       
       // Delete from backend in background
+      // Note: deleteWhiteboardItem now handles connection deletion automatically
       const deletePromises = [
-        deleteWhiteboardItem(id),
-        ...itemConnections.map(conn => deleteConnection(conn.id))
+        deleteWhiteboardItem(id)
       ];
       
       // If it's an AI chat item, also try to delete the chat
@@ -485,14 +486,30 @@ React.useEffect(() => {
       }
       
       Promise.all(deletePromises).then((results) => {
+        console.log('Successfully deleted item and its connections from backend');
       }).catch((error) => {
         console.error('Error deleting item from database:', error);
         console.error('Item ID:', id, 'Item type:', itemToDelete?.type);
-        toast({
-          variant: 'destructive',
-          title: 'Delete failed',
-          description: `Could not delete ${itemToDelete?.type || 'item'}. Please refresh and try again.`,
-        });
+        
+        // Only show error for actual failures, not for "already deleted" cases
+        if (error.message && !error.message.includes('not found') && !error.message.includes('already deleted')) {
+          // Re-add the item and its connections if deletion failed
+          if (itemToDelete) {
+            setItems(prev => [...prev, itemToDelete]);
+          }
+          itemConnections.forEach(conn => {
+            connections.addConnection(conn.from, conn.to, conn.type, conn.id);
+          });
+          
+          toast({
+            variant: 'destructive',
+            title: 'Delete failed',
+            description: `Could not delete ${itemToDelete?.type || 'item'}. Please refresh and try again.`,
+          });
+        } else {
+          // Item was already deleted or not found - this is fine
+          console.log('Item was already deleted or not found');
+        }
       });
       
     } catch (error) {
@@ -1127,6 +1144,9 @@ React.useEffect(() => {
           showGrid={showGrid}
           onToggleGrid={() => setShowGrid(!showGrid)}
         />
+
+        {/* Loading Screen */}
+        <LoadingScreen isLoading={isLoading} />
       </div>
     </ProtectedRoute>
   );
