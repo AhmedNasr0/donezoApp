@@ -15,14 +15,12 @@ export class VideoUseCase {
     
     async deleteVideo(id: string): Promise<void> {
 
-        // delete all connections relate to the video
-        const relatedConnections:Connection[]|null = await this.connectionRepository.findConnectionsByID(id);
+        const relatedConnections:any = await this.connectionRepository.findConnectionsByID(id);
         if(relatedConnections === null) return;
         for (const connectionId of relatedConnections) {
             await this.connectionRepository.deleteConnection(connectionId.id);
         }
 
-        // delete all jobs connected to this video 
         const jobs = await this.jobRepository.findAll();
         for (const job of jobs) {
             if(job.resourceId === id)

@@ -22,7 +22,6 @@ export class UploadVideoUseCase {
 
         
 
-        // send to message queue for processing
         await this.messageQueueService.sendToQueue('video_processing', {
             jobId,
             videoId,

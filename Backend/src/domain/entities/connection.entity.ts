@@ -28,7 +28,7 @@ export class Connection {
         public readonly description?: string,
         public readonly style?: Partial<ConnectionStyle>,
         public readonly bidirectional: boolean = false,
-        public readonly strength: number = 3, // 1-5 scale
+        public readonly strength: number = 3,
         public readonly metadata?: Record<string, any>,
         public readonly created: number = Date.now(),
         public readonly updated: number = Date.now(),
@@ -36,7 +36,6 @@ export class Connection {
         
     ) {}
 
-    // Static method to create from frontend Connection type
     static fromFrontendConnection(frontendConn: any, fromType: string, toType: string): Connection {
         return new Connection(
             frontendConn.id,
@@ -57,7 +56,6 @@ export class Connection {
         );
     }
 
-    // Convert to frontend format
     toFrontendFormat(): any {
         return {
             id: this.id,

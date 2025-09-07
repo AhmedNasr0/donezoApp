@@ -13,9 +13,6 @@ export class ConnectionController {
         try {
             const { fromId, fromType, toId, toType, connectionType = 'association', label, description } = req.body;
 
-            // Debug logging
-            console.log('Connection creation request:', { fromId, fromType, toId, toType, connectionType });
-
             if (!fromId || !toId) {
                 return res.status(400).json({
                     success: false,
@@ -27,7 +24,6 @@ export class ConnectionController {
             const safeFromType = fromType || 'unknown';
             const safeToType = toType || 'unknown';
             
-            console.log('Safe types:', { safeFromType, safeToType });
 
             // Check if both items exist first
             const fromItem = await this.whiteboardItemRepository.findById(fromId);

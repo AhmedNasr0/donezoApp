@@ -307,13 +307,11 @@ React.useEffect(() => {
       pendingOperations.current.add(operationId);
   
       try {
-        // ✅ Add optimistic update immediately - user sees item right away
         setItems((prev) => [...prev, newItem]);
   
-        // Create item in backend in the background (non-blocking)
         createWhiteboardItem(newItem).then((savedItem) => {
-          if (savedItem.sucess) {
-            // ✅ Update with real ID and remove pending flag
+        
+          if (savedItem.success) {
             setItems((prev) => prev.map(item => 
               item.id === newItem.id 
                 ? { 
@@ -325,14 +323,15 @@ React.useEffect(() => {
                   }
                 : item
             ));
-  
+
             // Handle special cases
             if (type === 'ai') {
-              createChat(newItem.title).then((newChat) => {
-                if (newChat.data?.id) {
+              createChat(savedItem.data.id.toString(), savedItem.data.title).then((newChat) => {
+                if (newChat.success && newChat.data?.id) {
+                  // Update the item with the chat ID
                   setItems((prev) => prev.map(item => 
                     item.id === savedItem.data.id 
-                      ? { ...item, id: newChat.data.id.toString() }
+                      ? { ...item, chatId: newChat.data.id.toString() }
                       : item
                   ));
                 }
@@ -556,12 +555,10 @@ React.useEffect(() => {
       }
       
       Promise.all(deletePromises).then((results) => {
-        console.log('Successfully deleted item and its connections from backend');
       }).catch((error) => {
         console.error('Error deleting item from database:', error);
         
         if (error.message && !error.message.includes('not found')) {
-          // ✅ Rollback: Re-add the item and connections if deletion failed
           if (itemToDelete) {
             setItems(prev => [...prev, itemToDelete]);
           }

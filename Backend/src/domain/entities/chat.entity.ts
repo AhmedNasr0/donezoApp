@@ -8,5 +8,6 @@ export class Chat {
         public createdAt: Date = new Date(),
         public chat_messages: ChatMessage[] = [],
         public readonly whiteboardId: string,
+        public readonly whiteboardItemId?: string,
     ) {}
 }

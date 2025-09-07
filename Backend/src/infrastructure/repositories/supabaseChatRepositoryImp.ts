@@ -21,7 +21,8 @@ export class ChatRepository implements IChatRepository {
                 createdAt: new Date(msg.createdAt),
                 updatedAt: new Date(msg.updatedAt)
             })),
-            row.whiteboard_id
+            row.whiteboard_id,
+            row.whiteboard_item_id
         ));
     }
 
@@ -34,6 +35,7 @@ export class ChatRepository implements IChatRepository {
                 chat_messages: chat.chat_messages,
                 numOfConnections: chat.numOfConnections,
                 whiteboard_id: chat.whiteboardId,
+                whiteboard_item_id: chat.whiteboardItemId,
                 created_at: chat.createdAt
             }])
             .select()
@@ -47,7 +49,8 @@ export class ChatRepository implements IChatRepository {
             data.numOfConnections,
             new Date(data.created_at),
             data.chat_messages || [],
-            data.whiteboard_id
+            data.whiteboard_id,
+            data.whiteboard_item_id
         );
     }
 
@@ -69,7 +72,31 @@ export class ChatRepository implements IChatRepository {
             data.numOfConnections,
             new Date(data.created_at),
             data.chat_messages || [],
-            data.whiteboard_id
+            data.whiteboard_id,
+            data.whiteboard_item_id
+        );
+    }
+
+    async getChatByWhiteboardItemId(whiteboardItemId: string): Promise<Chat | null> {
+        const { data, error } = await supabase
+            .from("chats")
+            .select("*")
+            .eq("whiteboard_item_id", whiteboardItemId)
+            .single();
+
+        if (error) {
+            if (error.code === "PGRST116") return null; // not found
+            throw error;
+        }
+
+        return new Chat(
+            data.id,
+            data.chat_name,
+            data.numOfConnections,
+            new Date(data.created_at),
+            data.chat_messages || [],
+            data.whiteboard_id,
+            data.whiteboard_item_id
         );
     }
 
@@ -94,7 +121,8 @@ export class ChatRepository implements IChatRepository {
             data.numOfConnections,
             new Date(data.created_at),
             data.chat_messages || [],
-            data.whiteboard_id
+            data.whiteboard_id,
+            data.whiteboard_item_id
         );
     }
 

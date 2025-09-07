@@ -36,10 +36,13 @@ export function AiChatWindow({ item, items }: AiChatWindowProps) {
       try {
         setIsLoadingHistory(true);
         
+        // Use chatId if available, otherwise fall back to item.id
+        const chatId = item.chatId || item.id;
+        
         // Add a small delay to allow chat creation to complete
         await new Promise(resolve => setTimeout(resolve, 1000));
         
-        const response = await getChatHistory(item.id);
+        const response = await getChatHistory(chatId);
         
         if (response.success && response.data.messages) {
           const loadedMessages: Message[] = response.data.messages.map((msg: any) => ({
@@ -73,7 +76,7 @@ export function AiChatWindow({ item, items }: AiChatWindowProps) {
     if (item.id) {
       loadChatHistory();
     }
-  }, [item.id, toast]);
+  }, [item.id, item.chatId, toast]);
 
   React.useEffect(() => {
     // Auto-scroll to bottom when new messages are added
@@ -145,9 +148,13 @@ export function AiChatWindow({ item, items }: AiChatWindowProps) {
     setMessages((prev) => [...prev, userMsg]);
   
     try {
-      const response = await sendMessage(item.id, currentInput);
+      // Use chatId if available, otherwise fall back to item.id
+      const chatId = item.chatId || item.id;
       
-      if (!response.ok && response.data.answer === "no Answer") {
+      const response = await sendMessage(chatId, currentInput);
+      
+      // Check if response has the expected structure
+      if (response && response.data && response.data.answer === "no Answer") {
         toast({
           variant: 'destructive',
           title: 'No context available',
@@ -169,7 +176,7 @@ export function AiChatWindow({ item, items }: AiChatWindowProps) {
         // Add a small delay to ensure chat is ready
         await new Promise(resolve => setTimeout(resolve, 500));
         
-        const historyResponse = await getChatHistory(item.id);
+        const historyResponse = await getChatHistory(chatId);
         if (historyResponse.success && historyResponse.data.messages) {
           const loadedMessages: Message[] = historyResponse.data.messages.map((msg: any) => ({
             id: msg.id,
@@ -199,7 +206,7 @@ export function AiChatWindow({ item, items }: AiChatWindowProps) {
         
         const errorMsg: Message = { 
           id: Date.now().toString() + '_error', 
-          role: 'assistant', 
+          role: 'assistant',
           content: "Sorry, I couldn't process that request. Please try again.",
           createdAt: new Date()
         };
@@ -212,7 +219,8 @@ export function AiChatWindow({ item, items }: AiChatWindowProps) {
 
   const handleClearHistory = async () => {
     try {
-      await clearChatHistory(item.id);
+      const chatId = item.chatId || item.id;
+      await clearChatHistory(chatId);
       setMessages([]);
       toast({
         description: 'Chat history cleared successfully',

@@ -10,11 +10,13 @@ export class ChatController {
 
     async createChat(req: Request, res: Response): Promise<void> {
         try {
-            const { chat_name, whiteboardId, numOfConnections } = req.body;
+            const { id, chat_name, whiteboardId, numOfConnections, whiteboardItemId } = req.body;
             const chat = await this.chatUseCase.createChat({
+                id,
                 chat_name,
                 whiteboardId,
-                numOfConnections
+                numOfConnections,
+                whiteboardItemId
             });
 
             res.status(201).json({
@@ -51,6 +53,34 @@ export class ChatController {
             });
         } catch (error) {
             console.error('Error getting chat:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Failed to get chat'
+            });
+        }
+    }
+
+    // Get chat by whiteboard item ID
+    async getChatByWhiteboardItemId(req: Request, res: Response): Promise<void> {
+        try {
+            const { whiteboardItemId } = req.params;
+            if(!whiteboardItemId) return ;
+            const chat = await this.chatUseCase.getChatByWhiteboardItemId(whiteboardItemId);
+
+            if (!chat) {
+                res.status(404).json({
+                    success: false,
+                    error: 'Chat not found'
+                });
+                return;
+            }
+
+            res.json({
+                success: true,
+                data: chat
+            });
+        } catch (error) {
+            console.error('Error getting chat by whiteboard item ID:', error);
             res.status(500).json({
                 success: false,
                 error: 'Failed to get chat'

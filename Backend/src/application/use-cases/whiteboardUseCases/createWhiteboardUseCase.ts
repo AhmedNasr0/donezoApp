@@ -6,10 +6,10 @@ export class CreateWhiteboardUseCase {
 
   async execute(title: string, userId: string): Promise<Whiteboard> {
     const newWhiteboard = new Whiteboard(
-        crypto.randomUUID(), // id
-        userId,              // user_id
-        title,               // title
-        []                   // whiteboard_items
+        crypto.randomUUID(), 
+        userId,              
+        title,               
+        []                   
     );
 
     return await this.whiteboardRepo.createWhiteboard(newWhiteboard);

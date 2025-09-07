@@ -10,18 +10,27 @@ const getBaseUrl = () => {
 };
 
 
-export async function createChat(chatName: string) {
-  const whiteboard = await getCurrentWhiteboardId()
-  const chat= {
+export async function createChat(whiteboardItemId: string, chatName: string) {
+  const whiteboard = await getCurrentWhiteboardId();
+  
+  const chat = {
     chat_name: chatName,
-    whiteboardId: whiteboard.data.id
-  }
+    whiteboardId: whiteboard.data.id,
+    whiteboardItemId: whiteboardItemId  
+  };
+  
   const res = await fetch(`${getBaseUrl()}/api/v1/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(chat),
   });
-  if (!res.ok) throw new Error('Failed to create chat');
+  
+  if (!res.ok) {
+    const errorText = await res.text();
+    console.error('Create chat failed:', errorText);
+    throw new Error(`Failed to create chat: ${res.status} ${errorText}`);
+  }
+  
   return res.json();
 }
 
@@ -53,8 +62,15 @@ export async function sendMessage(chatId: string, message: string) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ question: message }),
   });
-  if (!res.ok) throw new Error('Failed to send message');
-  return res.json();
+  
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
+    console.error('Send message failed:', errorData);
+    throw new Error(errorData.error || 'Failed to send message');
+  }
+  
+  const data = await res.json();
+  return data;
 }
 
 export async function getChatHistory(chatId: string) {
@@ -256,8 +272,6 @@ export async function createConnection(
 
       // Handle specific error cases
       if (response.status === 200 && result.success && result.message?.includes('already exists')) {
-          // Connection already exists - this is not an error
-          console.log('Connection already exists:', result.message);
           return result;
       }
 
@@ -405,12 +419,12 @@ export async function createWhiteboardItem(item: WindowItem) {
       },
       body: JSON.stringify(data),
   });
-  const res= response.json()
   
   if (!response.ok) {
       throw new Error('Failed to create item');
   }
   
+  const res = await response.json();
   return res;
 }
 

@@ -18,18 +18,14 @@ export class ChatMessageUseCase {
     ) {}
 
     async sendMessage(dto: SendMessageRequestDTO): Promise<SendMessageResponseDTO> {
-        
-        // Verify chat exists
-        const chat = await this.chatRepository.getChatById(dto.chatId);
+        const chat = await this.chatRepository.getChatByWhiteboardItemId(dto.chatId);
         if (!chat) {
             throw new Error('Chat not found');
         }
 
-
-        // Save user message first
         const userMessage = new ChatMessage(
             uuidv4(),
-            dto.chatId,
+            chat.id,
             'user',
             dto.question,
             [],
@@ -38,17 +34,13 @@ export class ChatMessageUseCase {
         await this.chatMessageRepository.save(userMessage);
 
 
-        
         const connectionIds = await this.connectionRepository.findConnectionIdsForEntity(dto.chatId, 'ai');
-        
         const contexts: string[] = [];
         const processedConnections: string[] = [];
 
-        // Process each connected entity
         for (const connectedEntityId of connectionIds) {
             try {
                 
-                // Try to get job status for this entity
                 const job = await this.videoStatusUseCase.execute(connectedEntityId);
                 
                 
@@ -68,7 +60,6 @@ export class ChatMessageUseCase {
             answer = await this.llmOrchestratorService.generateResponse(dto.question, combinedContext);
         } else {
             
-            // Check if there are connections but no transcriptions ready
             if (connectionIds.length > 0) {
                 answer = "I can see you have connected some resources to this chat, but their transcriptions are not ready yet. Please wait for the processing to complete, or check if the connected videos are accessible.";
             } else {
@@ -76,15 +67,15 @@ export class ChatMessageUseCase {
             }
         }
 
-        // Save AI response
         const aiMessage = new ChatMessage(
             uuidv4(),
-            dto.chatId,
+            chat.id,
             'assistant',
             answer,
             contexts,
             new Date()
         );
+
         await this.chatMessageRepository.save(aiMessage);
 
 
@@ -92,22 +83,16 @@ export class ChatMessageUseCase {
             answer,
             messageId: aiMessage.id,
             context: contexts,
-            debugInfo: {
-                connectedEntities: connectionIds.length,
-                processedConnections: processedConnections.length,
-                availableContexts: contexts.length
-            }
         };
     }
 
-    async getChatHistory(chatId: string): Promise<GetChatHistoryResponseDTO> {
-        // Verify chat exists
-        const chat = await this.chatRepository.getChatById(chatId);
+    async getChatHistory(itemId: string): Promise<GetChatHistoryResponseDTO> {
+        const chat = await this.chatRepository.getChatByWhiteboardItemId(itemId);
         if (!chat) {
             throw new Error('Chat not found');
         }
 
-        const messages = await this.chatMessageRepository.findByChatId(chatId);
+        const messages = await this.chatMessageRepository.findByChatId(chat.id);
         
         return {
             messages: messages.map(msg => ({
@@ -130,14 +115,13 @@ export class ChatMessageUseCase {
         await this.chatMessageRepository.deleteById(messageId);
     }
 
-    async clearChatHistory(chatId: string): Promise<void> {
-        // Verify chat exists
-        const chat = await this.chatRepository.getChatById(chatId);
+    async clearChatHistory(itemId: string): Promise<void> {
+        const chat = await this.chatRepository.getChatByWhiteboardItemId(itemId);
         if (!chat) {
             throw new Error('Chat not found');
         }
 
-        await this.chatMessageRepository.deleteByChatId(chatId);
+        await this.chatMessageRepository.deleteByChatId(chat.id);
     }
 
     async updateMessage(messageId: string, content: string): Promise<ChatMessage> {

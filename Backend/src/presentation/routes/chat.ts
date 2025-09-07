@@ -6,6 +6,7 @@ export function createChatRoutes(chatController: ChatController): Router {
 
     router.post('/', chatController.createChat.bind(chatController));
     router.get('/', chatController.getAllChats.bind(chatController));
+    router.get('/whiteboard-item/:whiteboardItemId', chatController.getChatByWhiteboardItemId.bind(chatController));
     router.get('/:id', chatController.getChatById.bind(chatController));
     router.put('/:id', chatController.updateChat.bind(chatController));
     router.delete('/:id', chatController.deleteChat.bind(chatController));

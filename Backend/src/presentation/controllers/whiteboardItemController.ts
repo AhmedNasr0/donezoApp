@@ -67,7 +67,10 @@ export class WhiteboardItemController {
             }
 
             const savedItem = await this.repository.createItem(newItem);
-            res.status(201).json(savedItem);
+            res.status(201).json({
+                success: true,
+                data: savedItem
+            });
         } catch (error: any) {
             console.error("Error creating item:", error);
             res.status(500).json({ error: error.message });

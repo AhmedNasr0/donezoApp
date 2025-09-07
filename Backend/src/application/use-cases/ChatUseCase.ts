@@ -19,14 +19,17 @@ export class ChatUseCase {
     ) {}
 
     async createChat(dto: CreateChatRequestDTO): Promise<Chat> {
+         ("createChatUseCase",dto);
         const chat: Chat = {
-            id: uuidv4(),
+            id: dto.id || uuidv4(),
             chat_name: dto.chat_name,
             chat_messages: [],
             numOfConnections: dto.numOfConnections || 0,
             createdAt: new Date(),
-            whiteboardId: dto.whiteboardId
+            whiteboardId: dto.whiteboardId,
+            whiteboardItemId: dto.whiteboardItemId
         };
+
 
         return await this.chatRepository.createChat(chat);
     }
@@ -35,8 +38,17 @@ export class ChatUseCase {
         const chat = await this.chatRepository.getChatById(id);
         if (!chat) return null;
 
-        // Load messages separately
         const messages = await this.chatMessageRepository.findByChatId(id);
+        chat.chat_messages = messages;
+
+        return chat;
+    }
+
+    async getChatByWhiteboardItemId(whiteboardItemId: string): Promise<Chat | null> {
+        const chat = await this.chatRepository.getChatByWhiteboardItemId(whiteboardItemId);
+        if (!chat) return null;
+
+        const messages = await this.chatMessageRepository.findByChatId(chat.id);
         chat.chat_messages = messages;
 
         return chat;
@@ -45,7 +57,6 @@ export class ChatUseCase {
     async getAllChats(): Promise<Chat[]> {
         const chats = await this.chatRepository.getAllChats();
         
-        // Load messages for each chat
         for (const chat of chats) {
             const messages = await this.chatMessageRepository.findByChatId(chat.id);
             chat.chat_messages = messages;
@@ -77,10 +88,8 @@ export class ChatUseCase {
         }
 
         
-        // Delete all messages for this chat first
         await this.chatMessageRepository.deleteByChatId(id);
         
-        // Then delete the chat
         await this.chatRepository.deleteChat(id);
         
     }
@@ -91,7 +100,6 @@ export class ChatUseCase {
             throw new Error('Chat not found');
         }
 
-        // Save user message
         const userMessage = new ChatMessage(
             uuidv4(),
             chatId,
@@ -102,7 +110,6 @@ export class ChatUseCase {
         );
         await this.chatMessageRepository.save(userMessage);
 
-        // Get connections and build context
         const connectionIds = await this.connectionRepository.findConnectionIdsForEntity(chat.id, 'ai');
         const contexts: string[] = [];
 
@@ -125,7 +132,6 @@ export class ChatUseCase {
             answer = "no Answer"; 
         }
 
-        // Save AI response
         const aiMessage = new ChatMessage(
             uuidv4(),
             chatId,

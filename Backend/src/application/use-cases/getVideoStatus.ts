@@ -10,7 +10,6 @@ export class VideoStatusUseCase {
 
     async execute(videoId: string): Promise<Job> {
 
-        // First try to find the whiteboard item
         const getItem = await this.whiteboardItemRepository.findById(videoId);
         if (!getItem) {
             console.error(`VideoStatusUseCase: Whiteboard item not found for ID: ${videoId}`);
@@ -18,10 +17,8 @@ export class VideoStatusUseCase {
         }
 
 
-        // Get all jobs and find the one that matches this resource
         const allJobs = await this.jobRepository.findAll();
 
-        // Look for job that matches the whiteboard item ID
         const job = allJobs.find((job) => {
             return job.resourceId === getItem.id;
         });

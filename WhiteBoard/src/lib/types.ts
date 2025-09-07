@@ -53,6 +53,7 @@ export type WindowItem = {
   isLocked?: boolean;
   groupId?: string;
   whiteboardId?:string;
+  chatId?: string; // For AI chat items
   isPending?: boolean; // For optimistic updates
   isError?: boolean; // For failed operations
 };

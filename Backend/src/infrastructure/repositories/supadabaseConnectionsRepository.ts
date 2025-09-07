@@ -21,8 +21,6 @@ export class ConnectionRepository implements IConnectionRepository {
         );
       
         if (existingConnection) {
-            // Return existing connection instead of throwing error
-            console.log('Connection already exists, returning existing connection');
             return existingConnection;
         }
       
@@ -56,8 +54,6 @@ export class ConnectionRepository implements IConnectionRepository {
             if (error) {
                 // Handle specific database errors gracefully
                 if (error.code === '23505') {
-                    // Duplicate key error - connection already exists
-                    console.log('Connection already exists, fetching existing connection');
                     const existing = await this.getConnectionBetweenItems(connection.fromId, connection.toId);
                     if (existing) {
                         return existing;
@@ -65,15 +61,12 @@ export class ConnectionRepository implements IConnectionRepository {
                 }
                 
                 if (error.code === '23503') {
-                    // Foreign key constraint violation
                     console.error('Foreign key constraint violation:', error);
-                    // throw new Error(`One or both items do not exist: ${error.message}`);
                 }
                 
                 if (error.code === '23502') {
                     // Not null constraint violation
                     console.error('Not null constraint violation:', error);
-                    // throw new Error(`Required field is missing: ${error.message}`);
                 }
                 
                 console.error('Supabase error creating connection:', error);
@@ -296,7 +289,6 @@ export class ConnectionRepository implements IConnectionRepository {
                 return 0;
             }
 
-            console.log(`Cleaned up ${orphanedIds.length} orphaned connections`);
             return orphanedIds.length;
         } catch (error) {
             console.error('Error in cleanupOrphanedConnections:', error);

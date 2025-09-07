@@ -69,7 +69,7 @@ export class ConnectionUseCase {
             existingConnection.strength,
             existingConnection.metadata,
             existingConnection.created,
-            Date.now(), // updated timestamp
+            Date.now(),
             existingConnection.createdAt
         );
 
