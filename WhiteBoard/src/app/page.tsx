@@ -219,33 +219,32 @@ React.useEffect(() => {
       isSavingRef.current = false;
     }
   };
-
+  const debouncedUpdateTimer = React.useRef<NodeJS.Timeout>();
   const handleAddItem = async (type: WindowType, content?: string | string[]) => {
     let newZIndex = activeZIndex;
     
     const createItem = async (itemContent: string): Promise<WindowItem> => {
       newZIndex++;
       
-      // Calculate position in world coordinates (center of current view)
+      // Calculate position
       const viewportCenterX = (window.innerWidth / 2 - panOffset.x) / scale;
       const viewportCenterY = (window.innerHeight / 2 - panOffset.y) / scale;
       
-      // Grid layout around the center
       const gridColumns = Math.floor(window.innerWidth / (WINDOW_WIDTH + GRID_GUTTER));
       const currentColumn = Math.floor((lastGridPosition.current.x - viewportCenterX + (WINDOW_WIDTH / 2)) / (WINDOW_WIDTH + GRID_GUTTER));
       
       if (currentColumn >= gridColumns) {
-          lastGridPosition.current.x = viewportCenterX - (gridColumns * (WINDOW_WIDTH + GRID_GUTTER)) / 2;
-          lastGridPosition.current.y += 360 + GRID_GUTTER;
+        lastGridPosition.current.x = viewportCenterX - (gridColumns * (WINDOW_WIDTH + GRID_GUTTER)) / 2;
+        lastGridPosition.current.y += 360 + GRID_GUTTER;
       }
-
+  
       const position = {
-          x: lastGridPosition.current.x,
-          y: lastGridPosition.current.y,
+        x: lastGridPosition.current.x,
+        y: lastGridPosition.current.y,
       };
-
+  
       const newItem: WindowItem = {
-        id: crypto.randomUUID(),
+        id: crypto.randomUUID(), // Temporary ID for optimistic update
         type,
         title: `New ${type.charAt(0).toUpperCase() + type.slice(1)}`,
         content: itemContent || '',
@@ -254,98 +253,119 @@ React.useEffect(() => {
         isAttached: false,
         zIndex: newZIndex,
         connections: [],
-        isPending: true, // Mark as pending for optimistic updates
+        isPending: true, // Mark as pending
       };
       
       lastGridPosition.current.x += WINDOW_WIDTH + GRID_GUTTER;
-
+  
+      // Set titles and content based on type
+      if (type === 'ai') {
+        newItem.title = "AI Assistant";
+        newItem.size = { width: 400, height: 550 };
+      } else if (type === 'doc') {
+        newItem.content = '';
+        newItem.title = 'Document Upload';
+      } else if (type === 'image') {
+        newItem.content = '';
+        newItem.title = 'Image Upload';
+      } else if (type === 'youtube') {
+        if (itemContent?.includes('playlist?list=')) {
+          newItem.title = 'New Playlist';
+        } else if (itemContent?.includes('/channel/') || itemContent?.includes('/c/') || itemContent?.includes('/user/')) {
+          newItem.title = 'New Channel';
+        } else {
+          newItem.title = 'New Video';
+        }
+        if (!itemContent) {
+          newItem.content = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
+        }
+      } else if (type === 'tiktok') {
+        if (itemContent?.includes('/video/')) {
+          newItem.title = 'New Reel';
+          newItem.size = { width: 325, height: 580 };
+        } else {
+          newItem.title = 'Tiktok Profile';
+        }
+      } else if (type === 'instagram') {
+        if (itemContent?.includes('/reel/') || itemContent?.includes('/reels/')) {
+          newItem.title = 'New Reel';
+          newItem.size = { width: 325, height: 580 };
+        } else {
+          newItem.title = 'Instagram Profile';
+        }
+      } else if (type === 'url') {
+        newItem.title = 'New Website';
+      } else if (type === 'social') {
+        newItem.content = 'https://placehold.co/600x400.png';
+      }
+  
       const operationId = `add-${newItem.id}`;
       if (pendingOperations.current.has(operationId)) {
         throw new Error('Item creation already in progress');
       }
       
       pendingOperations.current.add(operationId);
-
+  
       try {
-        if (type === 'ai') {
-            // Optimistic update for AI chat
-            newItem.title = "AI Assistant";
-            newItem.size = { width: 400, height: 550 };
-            
-            // Create chat in background
-            createChat(newItem.title).then((newChat) => {
-              if (newChat.data?.id) {
-                setItems((prev) => prev.map(item => 
-                  item.id === newItem.id ? { ...item, id: newChat.data.id.toString(), isPending: false } : item
-                ));
-              }
-            }).catch((error) => {
-              console.error('Failed to create chat:', error);
-              setItems((prev) => prev.map(item => 
-                item.id === newItem.id ? { ...item, isPending: false, isError: true } : item
-              ));
-            });
-        } else if (type === 'doc') {
-            newItem.content = '';
-            newItem.title = 'Document Upload';
-        } else if (type === 'image') {
-            newItem.content = '';
-            newItem.title = 'Image Upload';
-        } else if (type === 'youtube') {
-          if (itemContent) {
-              // const savedVideo=await uploadVideoLink(
-              //   newItem.content,'youtube'
-              // )
-              // newItem.id = savedVideo.data?.videoId.toString()
-          }
-      
-          if (itemContent?.includes('playlist?list=')) {
-              newItem.title = 'New Playlist';
-          } else if (itemContent?.includes('/channel/') || itemContent?.includes('/c/') || itemContent?.includes('/user/')) {
-              newItem.title = 'New Channel';
-          } else {
-              newItem.title = 'New Video';
-          }
-          if (!itemContent) {
-              newItem.content = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
-          }
-        } else if (type === 'tiktok') {
-            if (itemContent?.includes('/video/')) {
-              newItem.title = 'New Reel';
-              newItem.size = { width: 325, height: 580 };
-            } else {
-              newItem.title = 'Tiktok Profile';
-            }
-        } else if (type === 'instagram') {
-          if (itemContent?.includes('/reel/') || itemContent?.includes('/reels/')) {
-            newItem.title = 'New Reel';
-            newItem.size = { width: 325, height: 580 };
-          } else {
-            newItem.title = 'Instagram Profile';
-          }
-        } else if (type === 'url') {
-            newItem.title = 'New Website';
-        } else if (type === 'social') {
-            newItem.content = 'https://placehold.co/600x400.png';
-        }
-
-        // Optimistic update: add item immediately to UI
-        // Save to backend in background
+        // ✅ Add optimistic update immediately - user sees item right away
+        setItems((prev) => [...prev, newItem]);
+  
+        // Create item in backend in the background (non-blocking)
         createWhiteboardItem(newItem).then((savedItem) => {
           if (savedItem.sucess) {
-            // Update the item with the backend ID and remove pending flag
+            // ✅ Update with real ID and remove pending flag
             setItems((prev) => prev.map(item => 
-              item.id === newItem.id ? { ...item, id: savedItem.data.id, isPending: false } : item
+              item.id === newItem.id 
+                ? { 
+                    ...item, 
+                    id: savedItem.data.id, 
+                    isPending: false,
+                    createdAt: new Date(savedItem.data.created_at),
+                    updatedAt: new Date(savedItem.data.updated_at)
+                  }
+                : item
+            ));
+  
+            // Handle special cases
+            if (type === 'ai') {
+              createChat(newItem.title).then((newChat) => {
+                if (newChat.data?.id) {
+                  setItems((prev) => prev.map(item => 
+                    item.id === savedItem.data.id 
+                      ? { ...item, id: newChat.data.id.toString() }
+                      : item
+                  ));
+                }
+              }).catch((error) => {
+                console.error('Failed to create chat:', error);
+              });
+            }
+          } else {
+            // Mark item as failed but keep it in state
+            setItems((prev) => prev.map(item => 
+              item.id === newItem.id 
+                ? { ...item, isPending: false, isError: true }
+                : item
             ));
           }
         }).catch((error) => {
-          console.error('Failed to save item to backend:', error);
-          // Mark item as failed to save
+          console.error('Failed to create item:', error);
+          
+          // Mark item as failed but DON'T remove it
           setItems((prev) => prev.map(item => 
-            item.id === newItem.id ? { ...item, isPending: false, isError: true } : item
+            item.id === newItem.id 
+              ? { ...item, isPending: false, isError: true }
+              : item
           ));
+          
+          toast({
+            variant: 'destructive',
+            title: 'Failed to save item',
+            description: 'Item created locally but not saved to server. Please refresh to sync.',
+          });
         });
         
+        // Return the item immediately for optimistic update
         return newItem;
       } finally {
         pendingOperations.current.delete(operationId);
@@ -355,29 +375,32 @@ React.useEffect(() => {
     const itemContents = Array.isArray(content) ? content : [content || ''];
     
     try {
-        const newItems = await Promise.all(itemContents.map(c => createItem(c)));
-        
-        setItems((prev) => [...prev, ...newItems]);
-        setActiveZIndex(newZIndex);
-        
-        if (!history.isUndoRedoing) {
-            history.addToHistory({
-                type: 'add',
-                items: newItems,
-            });
-        }
-    } catch (error) {
-        console.error('Error adding item(s):', error);
-        toast({
-            variant: 'destructive',
-            title: 'Failed to add item',
-            description: 'Could not add the item. Please try again.',
+      const newItems = await Promise.all(itemContents.map(c => createItem(c)));
+      setActiveZIndex(newZIndex);
+      
+      if (!history.isUndoRedoing) {
+        history.addToHistory({
+          type: 'add',
+          items: newItems,
         });
+      }
+    } catch (error) {
+      console.error('Error adding item(s):', error);
     }
   };
-  const debouncedUpdateTimer = React.useRef<NodeJS.Timeout>();
-
+  
+  // ✅ SOLUTION 2: Enhanced handleUpdateItem to handle pending items
   const handleUpdateItem = async (updatedItem: WindowItem, immediate = false) => {
+    // ✅ Don't try to update items that are still pending creation
+    if (updatedItem.isPending) {
+      // Just update the local state for pending items
+      setItems((prev) =>
+        prev.map((item) => (item.id === updatedItem.id ? updatedItem : item))
+      );
+      return;
+    }
+  
+    // Regular update logic for non-pending items
     setItems((prev) =>
       prev.map((item) => (item.id === updatedItem.id ? updatedItem : item))
     );
@@ -404,13 +427,34 @@ React.useEffect(() => {
       pendingOperations.current.add(operationId);
       try {
         await updateWhiteboardItem(updatedItem);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error saving item to database:', error);
-        toast({
-          variant: 'destructive',
-          title: 'Update failed',
-          description: 'Could not save item changes.',
-        });
+        
+        // Check if it's an ID not found error
+        if (error.message?.includes('not found') || error.status === 404) {
+          console.warn(`Item ${updatedItem.id} not found in backend, marking as error`);
+          
+          // Mark item as having an error
+          setItems((prev) =>
+            prev.map((item) => 
+              item.id === updatedItem.id 
+                ? { ...item, isError: true }
+                : item
+            )
+          );
+          
+          toast({
+            variant: 'destructive',
+            title: 'Update failed',
+            description: 'Item not found. Please refresh the page.',
+          });
+        } else {
+          toast({
+            variant: 'destructive',
+            title: 'Update failed',
+            description: 'Could not save item changes.',
+          });
+        }
       } finally {
         pendingOperations.current.delete(operationId);
       }
@@ -422,22 +466,36 @@ React.useEffect(() => {
       debouncedUpdateTimer.current = setTimeout(performUpdate, 500);
     }
   };
-
+  
+  // ✅ Enhanced handleItemMove for pending items
   const handleItemMove = (updatedItem: WindowItem) => {
     setItems((prev) =>
       prev.map((item) => (item.id === updatedItem.id ? updatedItem : item))
     );
   };
-
+  
   const handleItemMoveEnd = async (updatedItem: WindowItem) => {
+    // ✅ Don't try to save position for pending items
+    if (updatedItem.isPending) {
+      return;
+    }
+  
     const operationId = `move-${updatedItem.id}`;
     if (pendingOperations.current.has(operationId)) return;
     
     pendingOperations.current.add(operationId);
     try {
       await updateWhiteboardItem(updatedItem);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving item position:', error);
+      
+      if (error.message?.includes('not found') || error.status === 404) {
+        toast({
+          variant: 'destructive',
+          title: 'Position not saved',
+          description: 'Item not found in database. Please refresh.',
+        });
+      }
     } finally {
       pendingOperations.current.delete(operationId);
     }
