@@ -3,35 +3,75 @@ import { WindowItem } from "./types";
 
 export type Platform = 'youtube' | 'tiktok' | 'instagram';
 
+// Cache for user data and whiteboard ID
+let userCache: any = null;
+let whiteboardIdCache: string | null = null;
+let cacheTimestamp = 0;
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
 const getBaseUrl = () => {
   if (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_BACKEND_URL) return process.env.NEXT_PUBLIC_BACKEND_URL;
   if (typeof window !== 'undefined') return 'http://localhost:3000';
   return 'http://backend:3000';
 };
 
-
-export async function createChat(whiteboardItemId: string, chatName: string) {
-  const whiteboard = await getCurrentWhiteboardId();
-  
-  const chat = {
-    chat_name: chatName,
-    whiteboardId: whiteboard.data.id,
-    whiteboardItemId: whiteboardItemId  
-  };
-  
-  const res = await fetch(`${getBaseUrl()}/api/v1/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(chat),
-  });
-  
-  if (!res.ok) {
-    const errorText = await res.text();
-    console.error('Create chat failed:', errorText);
-    throw new Error(`Failed to create chat: ${res.status} ${errorText}`);
+// Optimized user caching
+async function getCachedUser() {
+  const now = Date.now();
+  if (userCache && (now - cacheTimestamp) < CACHE_DURATION) {
+    return userCache;
   }
   
-  return res.json();
+  userCache = await getCurrentUser();
+  cacheTimestamp = now;
+  return userCache;
+}
+
+// Request queue for managing concurrent requests
+class RequestQueue {
+  private queue: Map<string, Promise<any>> = new Map();
+  
+  async execute<T>(key: string, requestFn: () => Promise<T>): Promise<T> {
+    if (this.queue.has(key)) {
+      return this.queue.get(key)!;
+    }
+    
+    const promise = requestFn().finally(() => {
+      this.queue.delete(key);
+    });
+    
+    this.queue.set(key, promise);
+    return promise;
+  }
+}
+
+const requestQueue = new RequestQueue();
+
+
+export async function createChat(whiteboardItemId: string, chatName: string) {
+  return requestQueue.execute(`create-chat-${whiteboardItemId}`, async () => {
+    const whiteboard = await getCurrentWhiteboardId();
+    
+    const chat = {
+      chat_name: chatName,
+      whiteboardId: whiteboard.data.id,
+      whiteboardItemId: whiteboardItemId  
+    };
+    
+    const res = await fetch(`${getBaseUrl()}/api/v1/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(chat),
+    });
+    
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error('Create chat failed:', errorText);
+      throw new Error(`Failed to create chat: ${res.status} ${errorText}`);
+    }
+    
+    return res.json();
+  });
 }
 
 export async function deleteChat(chatId: string) {
@@ -143,7 +183,8 @@ export async function deleteVideo(id:string){
 }
 
 export async function getCurrentWhiteboardId(){
-  const currentUser = await getCurrentUser()
+  return requestQueue.execute('get-whiteboard-id', async () => {
+    const currentUser = await getCachedUser();
     const response = await fetch(`${getBaseUrl()}/api/v1/whiteboard/user/${encodeURIComponent(currentUser?.email as any)}`, {
         method: 'GET',
         headers: {
@@ -151,81 +192,90 @@ export async function getCurrentWhiteboardId(){
         },
     });
 
-    return await response.json()
+    const result = await response.json();
+    if (result.data?.id) {
+      whiteboardIdCache = result.data.id;
+    }
+    return result;
+  });
 }
 
 export async function getWhiteboard() {
-  const currentUser = await getCurrentUser();
-  
-  if (!currentUser) {
-      throw new Error('User not authenticated');
-  }
-  
-  try {
-      const response = await fetch(`${getBaseUrl()}/api/v1/whiteboard/user/${encodeURIComponent(currentUser?.email as any)}`, {
-          method: 'GET',
-          headers: {
-              'Content-Type': 'application/json',
-          },
-      });
+  return requestQueue.execute('get-whiteboard', async () => {
+    const currentUser = await getCachedUser();
+    
+    if (!currentUser) {
+        throw new Error('User not authenticated');
+    }
+    
+    try {
+        const response = await fetch(`${getBaseUrl()}/api/v1/whiteboard/user/${encodeURIComponent(currentUser?.email as any)}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        });
 
-      if (response.ok) {
-            const data = await response.json();
+        if (response.ok) {
+              const data = await response.json();
+          
+              if (data && data.data) {
+                  return data.data; 
+              }
+        }
+
+        // If no whiteboard exists, create a new one
+        const newWhiteboard = await fetch(`${getBaseUrl()}/api/v1/whiteboard/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+                userId: currentUser.email, 
+                title: 'My Whiteboard' 
+            }),
+        });
         
-            if (data && data.data) {
-                return data.data; 
-            }
-      }
-
-      // If no whiteboard exists, create a new one
-      const newWhiteboard = await fetch(`${getBaseUrl()}/api/v1/whiteboard/`, {
-          method: 'POST',
-          headers: {
-              'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ 
-              userId: currentUser.email, 
-              title: 'My Whiteboard' 
-          }),
-      });
-      return newWhiteboard.json()
-  } catch (error) {
-      console.error('Error in getWhiteboard:', error);
-      throw error;
-  }
+        const result = await newWhiteboard.json();
+        if (result.data?.id) {
+          whiteboardIdCache = result.data.id;
+        }
+        return result;
+    } catch (error) {
+        console.error('Error in getWhiteboard:', error);
+        throw error;
+    }
+  });
 }
 
 export async function saveWhiteboardState(items: any[], whiteboardId?: string) {
-  const currentUser = await getCurrentUser();
-  
-  if (!currentUser) {
-      throw new Error('User not authenticated');
-  }
+  return requestQueue.execute(`save-whiteboard-${whiteboardId}`, async () => {
+    const currentUser = await getCachedUser();
+    
+    if (!currentUser) {
+        throw new Error('User not authenticated');
+    }
 
-  // Extract connections from items
-  const allConnections = items.flatMap(item => item.connections || []);
+    // Extract connections from items
+    const allConnections = items.flatMap(item => item.connections || []);
 
-  try {
-      const response = await fetch(`${getBaseUrl()}/api/v1/whiteboard/${whiteboardId }/save-state`, {
-          method: 'POST',
-          headers: {
-              'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-              whiteboardId: whiteboardId || currentUser.id,
-              items: items,
-          }),
-      });
+    const response = await fetch(`${getBaseUrl()}/api/v1/whiteboard/${whiteboardId }/save-state`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            whiteboardId: whiteboardId || currentUser.id,
+            items: items,
+        }),
+    });
 
-      if (!response.ok) {
-          throw new Error(`Failed to save whiteboard state: ${response.statusText}`);
-      }
+    if (!response.ok) {
+        throw new Error(`Failed to save whiteboard state: ${response.statusText}`);
+    }
 
-      return response.json();
-  } catch (error) {
-      console.error('Error saving whiteboard state:', error);
-      throw error;
-  }
+    return response.json();
+  });
 }
 
 export async function createConnection(
@@ -364,17 +414,17 @@ export async function getConnectionsForItem(itemId: string, type?: string) {
 }
 
 export async function updateWhiteboardItem(item: WindowItem) {
-  const currentUser = await getCurrentUser();
-  
-  if (!currentUser) {
-      throw new Error('User not authenticated');
-  }
-  const data ={
-    item,
-    userEmail: currentUser.email,
-  }
-  
-  try {
+  return requestQueue.execute(`update-item-${item.id}`, async () => {
+    const currentUser = await getCachedUser();
+    
+    if (!currentUser) {
+        throw new Error('User not authenticated');
+    }
+    const data ={
+      item,
+      userEmail: currentUser.email,
+    }
+    
     const response = await fetch(`${getBaseUrl()}/api/v1/whiteboard-item/${item.id}`, {
         method: 'PUT',
         headers: {
@@ -390,61 +440,59 @@ export async function updateWhiteboardItem(item: WindowItem) {
     }
     
     return response.json();
-  } catch (error) {
-    console.error('Network error updating item:', error);
-    throw error;
-  }
+  });
 }
 
 export async function createWhiteboardItem(item: WindowItem) {
-  const currentUser = await getCurrentUser();
-  
-  if (!currentUser) {
-      throw new Error('User not authenticated');
-  }
-  
-  const whiteboardId = await getCurrentWhiteboardId();
+  return requestQueue.execute(`create-item-${item.id}`, async () => {
+    const currentUser = await getCachedUser();
+    
+    if (!currentUser) {
+        throw new Error('User not authenticated');
+    }
+    
+    const whiteboardId = await getCurrentWhiteboardId();
 
-  const data ={
-    item,
-    userEmail: currentUser.email,
-  }
-  data.item.whiteboardId = whiteboardId.data.id
+    const data ={
+      item,
+      userEmail: currentUser.email,
+    }
+    data.item.whiteboardId = whiteboardId.data.id
 
-
-  const response = await fetch(`${getBaseUrl()}/api/v1/whiteboard-item/`, {
-      method: 'POST',
-      headers: {
-          'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
+    const response = await fetch(`${getBaseUrl()}/api/v1/whiteboard-item/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+    });
+    
+    if (!response.ok) {
+        throw new Error('Failed to create item');
+    }
+    
+    return response.json();
   });
-  
-  if (!response.ok) {
-      throw new Error('Failed to create item');
-  }
-  
-  const res = await response.json();
-  return res;
 }
 
 export async function deleteWhiteboardItem(id: string) {
-  
-  const response = await fetch(`${getBaseUrl()}/api/v1/whiteboard-item/${id}`, {
-      method: 'DELETE',
-  });
+  return requestQueue.execute(`delete-item-${id}`, async () => {
+    const response = await fetch(`${getBaseUrl()}/api/v1/whiteboard-item/${id}`, {
+        method: 'DELETE',
+    });
+      
+    if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Delete failed with status:', response.status, 'Error:', errorText);
+        throw new Error(`Failed to delete item: ${response.status} ${errorText}`);
+    }
     
-  if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Delete failed with status:', response.status, 'Error:', errorText);
-      throw new Error(`Failed to delete item: ${response.status} ${errorText}`);
-  }
-  
-  if (response.status === 204) {
-      return { success: true };
-  }
-  
-  return response.json();
+    if (response.status === 204) {
+        return { success: true };
+    }
+    
+    return response.json();
+  });
 }
 
 
@@ -459,4 +507,11 @@ export async function createUser(email:string){
   })
 
   return user.json()
+}
+
+// Clear cache function for logout
+export function clearApiCache() {
+  userCache = null;
+  whiteboardIdCache = null;
+  cacheTimestamp = 0;
 }

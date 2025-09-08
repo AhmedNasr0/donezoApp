@@ -4,9 +4,11 @@ import * as React from 'react';
 
 interface LoadingScreenProps {
   isLoading: boolean;
+  progress?: number;
+  message?: string;
 }
 
-export function LoadingScreen({ isLoading }: LoadingScreenProps) {
+export function LoadingScreen({ isLoading, progress = 0, message = "whiteboard loading" }: LoadingScreenProps) {
   if (!isLoading) return null;
 
   return (
@@ -20,13 +22,23 @@ export function LoadingScreen({ isLoading }: LoadingScreenProps) {
           </div>
         </div>
         
+        {/* Progress Bar */}
+        {progress > 0 && (
+          <div className="w-48 h-2 bg-primary/20 rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-primary rounded-full transition-all duration-300 ease-out"
+              style={{ width: `${Math.min(progress, 100)}%` }}
+            />
+          </div>
+        )}
+        
         {/* Loading Text */}
         <div className="text-center space-y-2">
           <h2 className="text-2xl font-bold text-foreground animate-pulse">
             Donezo
           </h2>
           <p className="text-sm text-muted-foreground animate-bounce">
-            whiteboard loading
+            {message}
           </p>
         </div>
         

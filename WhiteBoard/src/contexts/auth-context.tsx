@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
-import { createUser } from '@/lib/api';
+import { createUser, clearApiCache } from '@/lib/api';
 
 interface AuthContextType {
   user: User | null;
@@ -60,6 +60,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    clearApiCache(); // Clear API cache on logout
   };
 
   const value = {

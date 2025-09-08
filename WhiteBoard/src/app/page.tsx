@@ -40,6 +40,8 @@ export default function WhiteboardPage() {
   const [clipboard, setClipboard] = React.useState<WindowItem[]>([]);
   const [showGrid, setShowGrid] = React.useState(true);
   const [isLoading, setIsLoading] = React.useState(true);
+  const [loadingProgress, setLoadingProgress] = React.useState(0);
+  const [loadingMessage, setLoadingMessage] = React.useState('Initializing...');
   const [lastSaved, setLastSaved] = React.useState<Date | null>(null);
   const [whiteboardId, setWhiteboardId] = React.useState<string | null>(null);
 
@@ -86,8 +88,20 @@ React.useEffect(() => {
   const loadInitialState = async () => {
     try {
       setIsLoading(true);
+      setLoadingProgress(10);
+      setLoadingMessage('Authenticating user...');
+      
+      // Small delay to show progress
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      setLoadingProgress(30);
+      setLoadingMessage('Loading whiteboard data...');
+      
       const response = await getWhiteboard();
       if (response) {
+        setLoadingProgress(60);
+        setLoadingMessage('Processing whiteboard items...');
+        
         const { items: loadedItems, id, chatData } = response;
 
         setWhiteboardId(id);
@@ -99,6 +113,8 @@ React.useEffect(() => {
         
         setItems(processedItems);
 
+        setLoadingProgress(80);
+        setLoadingMessage('Setting up connections...');
         
         const connectionMap = new Map<string, Connection>();
         
@@ -120,15 +136,22 @@ React.useEffect(() => {
 
         const allConnections = Array.from(connectionMap.values());
         
-        
         connections.setConnections(allConnections);
         
+        setLoadingProgress(95);
+        setLoadingMessage('Finalizing setup...');
 
         const maxZ = processedItems.reduce((max: number, item: WindowItem) => 
           Math.max(max, item.zIndex || 1), 0);
         setActiveZIndex(maxZ);
 
         lastItemsHash.current = JSON.stringify(processedItems);
+        
+        setLoadingProgress(100);
+        setLoadingMessage('Complete!');
+        
+        // Small delay to show completion
+        await new Promise(resolve => setTimeout(resolve, 300));
         
         toast({
           description: `Loaded ${processedItems.length} items and ${allConnections.length} connections from previous session`,
@@ -143,6 +166,8 @@ React.useEffect(() => {
       });
     } finally {
       setIsLoading(false);
+      setLoadingProgress(0);
+      setLoadingMessage('Initializing...');
     }
   };
 
@@ -182,7 +207,7 @@ React.useEffect(() => {
       } finally {
         isSavingRef.current = false;
       }
-    }, 3000);
+    }, 2000); // Reduced from 3000ms to 2000ms for faster auto-save
   }, [items, whiteboardId, lastSaved, toast]);
 
   // Trigger auto-save when items change
@@ -309,7 +334,7 @@ React.useEffect(() => {
       try {
         setItems((prev) => [...prev, newItem]);
   
-        createWhiteboardItem(newItem).then((savedItem) => {
+        createWhiteboardItem(newItem).then(async (savedItem) => {
         
           if (savedItem.success) {
             setItems((prev) => prev.map(item => 
@@ -324,20 +349,28 @@ React.useEffect(() => {
                 : item
             ));
 
-            // Handle special cases
+            // Handle special cases - Create chat immediately for AI items
             if (type === 'ai') {
-              createChat(savedItem.data.id.toString(), savedItem.data.title).then((newChat) => {
+              // Create chat immediately and wait for it
+              try {
+                const newChat = await createChat(savedItem.data.id.toString(), savedItem.data.title);
                 if (newChat.success && newChat.data?.id) {
-                  // Update the item with the chat ID
+                  // Update the item with the chat ID immediately
                   setItems((prev) => prev.map(item => 
                     item.id === savedItem.data.id 
                       ? { ...item, chatId: newChat.data.id.toString() }
                       : item
                   ));
                 }
-              }).catch((error) => {
+              } catch (error) {
                 console.error('Failed to create chat:', error);
-              });
+                // Mark item as having chat creation error
+                setItems((prev) => prev.map(item => 
+                  item.id === savedItem.data.id 
+                    ? { ...item, chatError: true }
+                    : item
+                ));
+              }
             }
           } else {
             // Mark item as failed but keep it in state
@@ -462,7 +495,7 @@ React.useEffect(() => {
     if (immediate) {
       await performUpdate();
     } else {
-      debouncedUpdateTimer.current = setTimeout(performUpdate, 500);
+      debouncedUpdateTimer.current = setTimeout(performUpdate, 300); // Reduced from 500ms to 300ms
     }
   };
   
@@ -1226,7 +1259,11 @@ React.useEffect(() => {
         />
 
         {/* Loading Screen */}
-        <LoadingScreen isLoading={isLoading} />
+        <LoadingScreen 
+          isLoading={isLoading} 
+          progress={loadingProgress}
+          message={loadingMessage}
+        />
       </div>
     </ProtectedRoute>
   );

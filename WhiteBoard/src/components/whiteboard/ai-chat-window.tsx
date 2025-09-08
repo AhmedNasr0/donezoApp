@@ -30,36 +30,43 @@ export function AiChatWindow({ item, items }: AiChatWindowProps) {
   const { toast } = useToast();
   const scrollViewportRef = React.useRef<HTMLDivElement>(null);
   const [isLoadingHistory, setIsLoadingHistory] = React.useState(true);
+  const [isChatReady, setIsChatReady] = React.useState(false);
 
   React.useEffect(() => {
     const loadChatHistory = async () => {
       try {
         setIsLoadingHistory(true);
         
-        // Use chatId if available, otherwise fall back to item.id
-        const chatId = item.chatId || item.id;
+        // Always use item.id (whiteboard item ID) for getChatHistory API
+        // The backend expects whiteboard_item_id, not chat_id
+        const whiteboardItemId = item.id;
         
-        // Add a small delay to allow chat creation to complete
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        const response = await getChatHistory(chatId);
-        
-        if (response.success && response.data.messages) {
-          const loadedMessages: Message[] = response.data.messages.map((msg: any) => ({
-            id: msg.id,
-            role: msg.role,
-            content: msg.content,
-            context: msg.context || [],
-            createdAt: new Date(msg.createdAt)
-          }));
+        // If item.id is available, load history immediately
+        if (whiteboardItemId) {
+          setIsChatReady(true);
+          const response = await getChatHistory(whiteboardItemId);
           
-          setMessages(loadedMessages);
-          
-          if (loadedMessages.length > 0) {
-            toast({
-              description: `Loaded ${loadedMessages.length} previous messages`,
-            });
+          if (response.success && response.data.messages) {
+            const loadedMessages: Message[] = response.data.messages.map((msg: any) => ({
+              id: msg.id,
+              role: msg.role,
+              content: msg.content,
+              context: msg.context || [],
+              createdAt: new Date(msg.createdAt)
+            }));
+            
+            setMessages(loadedMessages);
+            
+            if (loadedMessages.length > 0) {
+              toast({
+                description: `Loaded ${loadedMessages.length} previous messages`,
+              });
+            }
           }
+        } else {
+          // No whiteboardItemId yet, start with empty messages
+          setMessages([]);
+          setIsChatReady(false);
         }
       } catch (error: any) {
         // If chat not found, it means the chat was deleted or not yet created - this is normal
@@ -148,10 +155,49 @@ export function AiChatWindow({ item, items }: AiChatWindowProps) {
     setMessages((prev) => [...prev, userMsg]);
   
     try {
-      // Use chatId if available, otherwise fall back to item.id
-      const chatId = item.chatId || item.id;
+      // Always use item.id (whiteboard item ID) for sendMessage API
+      // The backend expects whiteboard_item_id, not chat_id
+      const whiteboardItemId = item.id;
       
-      const response = await sendMessage(chatId, currentInput);
+      // If no item.id yet, show error message
+      if (!whiteboardItemId) {
+        toast({
+          variant: 'destructive',
+          title: 'Chat not ready',
+          description: 'Please wait for the chat to be initialized.',
+        });
+        
+        const errorMsg: Message = { 
+          id: Date.now().toString() + '_error', 
+          role: 'assistant',
+          content: "Chat is still being initialized. Please wait a moment and try again.",
+          createdAt: new Date()
+        };
+        
+        setMessages((prev) => [...prev, errorMsg]);
+        return;
+      }
+      
+      // If chat is not ready yet, show error message
+      if (!isChatReady) {
+        toast({
+          variant: 'destructive',
+          title: 'Chat not ready',
+          description: 'Please wait for the chat to be initialized.',
+        });
+        
+        const errorMsg: Message = { 
+          id: Date.now().toString() + '_error', 
+          role: 'assistant',
+          content: "Chat is still being initialized. Please wait a moment and try again.",
+          createdAt: new Date()
+        };
+        
+        setMessages((prev) => [...prev, errorMsg]);
+        return;
+      }
+      
+      const response = await sendMessage(whiteboardItemId, currentInput);
       
       // Check if response has the expected structure
       if (response && response.data && response.data.answer === "no Answer") {
@@ -176,7 +222,7 @@ export function AiChatWindow({ item, items }: AiChatWindowProps) {
         // Add a small delay to ensure chat is ready
         await new Promise(resolve => setTimeout(resolve, 500));
         
-        const historyResponse = await getChatHistory(chatId);
+        const historyResponse = await getChatHistory(whiteboardItemId);
         if (historyResponse.success && historyResponse.data.messages) {
           const loadedMessages: Message[] = historyResponse.data.messages.map((msg: any) => ({
             id: msg.id,
@@ -219,8 +265,8 @@ export function AiChatWindow({ item, items }: AiChatWindowProps) {
 
   const handleClearHistory = async () => {
     try {
-      const chatId = item.chatId || item.id;
-      await clearChatHistory(chatId);
+      const whiteboardItemId = item.id;
+      await clearChatHistory(whiteboardItemId);
       setMessages([]);
       toast({
         description: 'Chat history cleared successfully',
@@ -255,6 +301,14 @@ export function AiChatWindow({ item, items }: AiChatWindowProps) {
   return (
     <div className="flex h-full w-full flex-col overflow-hidden relative">
       <CustomScrollArea className="flex-1 min-h-0" viewportRef={scrollViewportRef}>
+        {!isChatReady && (
+          <div className="p-4 bg-yellow-50 border-b border-yellow-200">
+            <p className="text-sm text-yellow-800">
+              <span className="inline-block w-2 h-2 bg-yellow-500 rounded-full animate-pulse mr-2"></span>
+              Initializing chat...
+            </p>
+          </div>
+        )}
         <div className="p-4 space-y-4 min-h-full">
           {messages.length === 0 && (
             <div className="flex flex-col items-center justify-center text-center text-muted-foreground p-8 gap-4">
@@ -326,7 +380,7 @@ export function AiChatWindow({ item, items }: AiChatWindowProps) {
               }
             }}
           />
-          <Button type="submit" size="icon" disabled={isLoading || !input.trim()}>
+          <Button type="submit" size="icon" disabled={isLoading || !input.trim() || !isChatReady}>
             <Send className="h-4 w-4" />
           </Button>
         </form>
