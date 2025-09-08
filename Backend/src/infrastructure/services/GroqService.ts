@@ -8,9 +8,9 @@ import { getfullPrompt } from '../../shared/utils/Prompt';
 export class GroqService implements LLMService {
     private groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-    async generateResponse(question: string, context: string): Promise<string> {
+    async generateResponse(question: string, context: string, chatHistory?: Array<{role: string, content: string}>): Promise<string> {
         
-        const prompt = getfullPrompt(question, context)
+        const prompt = getfullPrompt(question, context, chatHistory)
 
         const completion = await this.groq.chat.completions
         .create({

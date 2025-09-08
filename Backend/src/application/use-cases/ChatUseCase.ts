@@ -19,7 +19,6 @@ export class ChatUseCase {
     ) {}
 
     async createChat(dto: CreateChatRequestDTO): Promise<Chat> {
-         ("createChatUseCase",dto);
         const chat: Chat = {
             id: dto.id || uuidv4(),
             chat_name: dto.chat_name,
@@ -124,10 +123,19 @@ export class ChatUseCase {
             }
         }
 
+        // Get chat history for context
+        const prevMessages = await this.getChatHistory(chatId);
+        const chatHistory = prevMessages.messages
+            .filter(msg => msg.role === 'user' || msg.role === 'assistant')
+            .map(msg => ({
+                role: msg.role,
+                content: msg.content
+            }));
+
         let answer: string;
         if (contexts.length > 0) {
             const combinedContext = contexts.join("\n--\n");
-            answer = await this.LLMOrchestratorService.generateResponse(question, combinedContext);
+            answer = await this.LLMOrchestratorService.generateResponse(question, combinedContext, chatHistory);
         } else {
             answer = "no Answer"; 
         }

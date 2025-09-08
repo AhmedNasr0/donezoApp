@@ -1,3 +1,3 @@
 export interface LLMService  {
-    generateResponse(question: string, chatId: string): Promise<string>
+    generateResponse(question: string, context: string, chatHistory?: Array<{role: string, content: string}>): Promise<string>
 }

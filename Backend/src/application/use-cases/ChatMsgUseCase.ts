@@ -53,11 +53,22 @@ export class ChatMessageUseCase {
             }
         }
 
+        const prevMessages = await this.getChatHistory(dto.chatId);
+
+        console.log("prevMessages", prevMessages);
+
+        // Prepare chat history for LLM (exclude the current message we just saved)
+        const chatHistory = prevMessages.messages
+            .filter(msg => msg.role === 'user' || msg.role === 'assistant')
+            .map(msg => ({
+                role: msg.role,
+                content: msg.content
+            }));
 
         let answer: string;
         if (contexts.length > 0) {
             const combinedContext = contexts.join("\n--\n");
-            answer = await this.llmOrchestratorService.generateResponse(dto.question, combinedContext);
+            answer = await this.llmOrchestratorService.generateResponse(dto.question, combinedContext, chatHistory);
         } else {
             
             if (connectionIds.length > 0) {

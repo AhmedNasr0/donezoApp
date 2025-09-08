@@ -6,12 +6,12 @@ export class LLMOrchestratorService implements LLMService {
         private secondary: LLMService
     ) {}
 
-    async generateResponse(question: string, context: string): Promise<string> {
+    async generateResponse(question: string, context: string, chatHistory?: Array<{role: string, content: string}>): Promise<string> {
         try {
-        return await this.primary.generateResponse(question, context);
+        return await this.primary.generateResponse(question, context, chatHistory);
         } catch (error) {
         console.warn("Primary LLM failed, falling back to secondary...", error);
-        return await this.secondary.generateResponse(question, context);
+        return await this.secondary.generateResponse(question, context, chatHistory);
         }
     }
 }

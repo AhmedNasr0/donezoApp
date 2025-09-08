@@ -8,11 +8,11 @@ export class GeminiService implements LLMService {
         apiKey:process.env.GEMINI_API_KEY || ''
     });
 
-    async generateResponse(question: string, context: string): Promise<string> {
+    async generateResponse(question: string, context: string, chatHistory?: Array<{role: string, content: string}>): Promise<string> {
         // Placeholder for OpenAI integration
         // In real implementation, you would call OpenAI API here
         
-        const prompt = getfullPrompt(question, context)
+        const prompt = getfullPrompt(question, context, chatHistory)
         const response = await this.ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: prompt,
